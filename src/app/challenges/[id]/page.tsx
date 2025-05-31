@@ -8,7 +8,7 @@ import ChallengeDetailsClient from '@/components/ChallengeDetailsClient';
 import { NotepadText, Users, ListChecks, Hourglass, Clock, CalendarDays, Zap, Trash2, Loader2, AlertTriangle, Gamepad2, Info } from 'lucide-react';
 
 // Function to generate static paths for all challenges
-export async function generateStaticParams() {
+export async function generateStaticParams(): Promise<{ id: string }[]> {
   const challenges = getDataChallenges(); // Fetch all challenges
   return challenges.map((challenge) => ({
     id: challenge.id,
@@ -16,13 +16,8 @@ export async function generateStaticParams() {
 }
 
 // Removed async keyword from the page component
-export default function ChallengeDetailsPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams: { [key: string]: string | string[] | undefined };
-}) {
+// Simplified props to only include params
+export default function ChallengeDetailsPage({ params }: { params: { id: string } }) {
   // Fetch data on the server
   const challengeId = params.id;
   // Call getDataChallengeById directly (it's synchronous)
@@ -35,3 +30,4 @@ export default function ChallengeDetailsPage({
   // Render the Client Component, passing the fetched data as a prop
   return <ChallengeDetailsClient initialChallenge={initialChallenge} />;
 }
+
