@@ -1,33 +1,32 @@
 
-// This is now a Server Component - "use client" directive removed.
-
+import type { FC } from 'react';
 import { notFound } from 'next/navigation';
-import { getDataChallenges, getDataChallengeById } from '@/lib/data'; // For generateStaticParams and direct data fetching
+import { getDataChallenges, getDataChallengeById } from '@/lib/data';
 import type { Challenge } from '@/types';
 import ChallengeDetailsClient from '@/components/ChallengeDetailsClient';
 import { NotepadText, Users, ListChecks, Hourglass, Clock, CalendarDays, Zap, Trash2, Loader2, AlertTriangle, Gamepad2, Info } from 'lucide-react';
 
-// Function to generate static paths for all challenges
 export async function generateStaticParams(): Promise<{ id: string }[]> {
-  const challenges = getDataChallenges(); // Fetch all challenges
+  const challenges = getDataChallenges();
   return challenges.map((challenge) => ({
     id: challenge.id,
   }));
 }
 
-// Removed async keyword from the page component
-// Simplified props to only include params
-export default function ChallengeDetailsPage({ params }: { params: { id: string } }) {
-  // Fetch data on the server
+interface ChallengeDetailsPageProps {
+  params: { id: string };
+  // searchParams: { [key: string]: string | string[] | undefined }; // We are not using searchParams here for now
+}
+
+const ChallengeDetailsPage: FC<ChallengeDetailsPageProps> = ({ params }) => {
   const challengeId = params.id;
-  // Call getDataChallengeById directly (it's synchronous)
   const initialChallenge = getDataChallengeById(challengeId);
 
   if (!initialChallenge) {
-    notFound(); // If challenge not found, trigger 404
+    notFound();
   }
 
-  // Render the Client Component, passing the fetched data as a prop
   return <ChallengeDetailsClient initialChallenge={initialChallenge} />;
 }
 
+export default ChallengeDetailsPage;
