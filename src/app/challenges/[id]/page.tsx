@@ -2,10 +2,11 @@
 // This is now a Server Component - "use client" directive removed.
 
 import { notFound } from 'next/navigation';
-import { getDataChallenges } from '@/lib/data'; // For generateStaticParams
-import { fetchChallengeDetailsAction } from '@/app/actions'; // Server Action
+import { getDataChallenges, getDataChallengeById } from '@/lib/data'; // For generateStaticParams and direct data fetching
+// Removed: import { fetchChallengeDetailsAction } from '@/app/actions'; 
 import type { Challenge } from '@/types';
-import ChallengeDetailsClient from '@/components/ChallengeDetailsClient'; // New Client Component
+import ChallengeDetailsClient from '@/components/ChallengeDetailsClient'; 
+import { NotepadText, Users, ListChecks, Hourglass, Clock, CalendarDays, Zap, Trash2, Loader2, AlertTriangle, Gamepad2, Info } from 'lucide-react'; // Added missing icons
 
 // Function to generate static paths for all challenges
 export async function generateStaticParams() {
@@ -15,18 +16,17 @@ export async function generateStaticParams() {
   }));
 }
 
-// Removed ChallengeDetailsPageProps interface
-
 export default async function ChallengeDetailsPage({
   params,
-  searchParams, // Added for completeness, though not used in this component
+  searchParams, 
 }: {
   params: { id: string };
   searchParams: { [key: string]: string | string[] | undefined };
 }) {
   // Fetch data on the server
   const challengeId = params.id;
-  const initialChallenge = await fetchChallengeDetailsAction(challengeId);
+  // Call getDataChallengeById directly (it's synchronous)
+  const initialChallenge = getDataChallengeById(challengeId);
 
   if (!initialChallenge) {
     notFound(); // If challenge not found, trigger 404

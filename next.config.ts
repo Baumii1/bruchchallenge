@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
   assetPrefix: isProd ? `/${repoName}/` : '',
 
   typescript: {
-    ignoreBuildErrors: true, // Kept true to bypass the previous persistent type error during build
+    ignoreBuildErrors: false, // Ensure type errors fail the build
   },
   eslint: {
     ignoreDuringBuilds: true,
