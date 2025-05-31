@@ -4,9 +4,10 @@ import { notFound } from 'next/navigation';
 import { getDataChallenges, getDataChallengeById } from '@/lib/data';
 import type { Challenge } from '@/types';
 import ChallengeDetailsClient from '@/components/ChallengeDetailsClient';
-import { NotepadText, Users, ListChecks, Hourglass, Clock, CalendarDays, Zap, Trash2, Loader2, AlertTriangle, Gamepad2, Info } from 'lucide-react';
+// Removed unused Lucide icons here as they are used in ChallengeDetailsClient
 
-export async function generateStaticParams(): Promise<{ id: string }[]> {
+// Make generateStaticParams synchronous
+export function generateStaticParams(): { id: string }[] {
   const challenges = getDataChallenges();
   return challenges.map((challenge) => ({
     id: challenge.id,
@@ -15,7 +16,7 @@ export async function generateStaticParams(): Promise<{ id: string }[]> {
 
 interface ChallengeDetailsPageProps {
   params: { id: string };
-  // searchParams: { [key: string]: string | string[] | undefined }; // We are not using searchParams here for now
+  searchParams: { [key: string]: string | string[] | undefined }; // Include searchParams
 }
 
 const ChallengeDetailsPage: FC<ChallengeDetailsPageProps> = ({ params }) => {
