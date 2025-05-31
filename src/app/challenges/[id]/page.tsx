@@ -3,10 +3,9 @@
 
 import { notFound } from 'next/navigation';
 import { getDataChallenges, getDataChallengeById } from '@/lib/data'; // For generateStaticParams and direct data fetching
-// Removed: import { fetchChallengeDetailsAction } from '@/app/actions'; 
 import type { Challenge } from '@/types';
-import ChallengeDetailsClient from '@/components/ChallengeDetailsClient'; 
-import { NotepadText, Users, ListChecks, Hourglass, Clock, CalendarDays, Zap, Trash2, Loader2, AlertTriangle, Gamepad2, Info } from 'lucide-react'; // Added missing icons
+import ChallengeDetailsClient from '@/components/ChallengeDetailsClient';
+import { NotepadText, Users, ListChecks, Hourglass, Clock, CalendarDays, Zap, Trash2, Loader2, AlertTriangle, Gamepad2, Info } from 'lucide-react';
 
 // Function to generate static paths for all challenges
 export async function generateStaticParams() {
@@ -16,9 +15,10 @@ export async function generateStaticParams() {
   }));
 }
 
-export default async function ChallengeDetailsPage({
+// Removed async keyword from the page component
+export default function ChallengeDetailsPage({
   params,
-  searchParams, 
+  searchParams,
 }: {
   params: { id: string };
   searchParams: { [key: string]: string | string[] | undefined };
