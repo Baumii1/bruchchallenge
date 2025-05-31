@@ -6,7 +6,6 @@ import { getDataChallenges } from '@/lib/data'; // For generateStaticParams
 import { fetchChallengeDetailsAction } from '@/app/actions'; // Server Action
 import type { Challenge } from '@/types';
 import ChallengeDetailsClient from '@/components/ChallengeDetailsClient'; // New Client Component
-// Removed unused imports like use, useState, useEffect, etc. as they are in ChallengeDetailsClient
 
 // Function to generate static paths for all challenges
 export async function generateStaticParams() {
@@ -16,11 +15,15 @@ export async function generateStaticParams() {
   }));
 }
 
-interface ChallengeDetailsPageProps {
-  params: { id: string }; // Params are directly available in Server Components
-}
+// Removed ChallengeDetailsPageProps interface
 
-export default async function ChallengeDetailsPage({ params }: ChallengeDetailsPageProps) {
+export default async function ChallengeDetailsPage({
+  params,
+  searchParams, // Added for completeness, though not used in this component
+}: {
+  params: { id: string };
+  searchParams: { [key: string]: string | string[] | undefined };
+}) {
   // Fetch data on the server
   const challengeId = params.id;
   const initialChallenge = await fetchChallengeDetailsAction(challengeId);
