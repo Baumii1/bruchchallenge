@@ -6,18 +6,17 @@ import type {NextConfig} from 'next';
 // then YOUR_REPO_NAME should be 'my-awesome-app'.
 const repoName = 'bruchchallenge'; // This should be your GitHub repository name
 
-// const isProd = process.env.NODE_ENV === 'production'; // Removed for testing
+const isProd = process.env.NODE_ENV === 'production';
 
 const nextConfig: NextConfig = {
   output: 'export',
   // basePath will make your app accessible at https://your-username.github.io/YOUR_REPO_NAME
-  basePath: `/${repoName}`, // Always apply basePath
+  basePath: isProd ? `/${repoName}` : '',
   // assetPrefix is necessary for static assets (CSS, JS, images) to be loaded correctly from the subpath on GitHub Pages.
-  // Ensure assetPrefix ends with a trailing slash for path-based deployments.
-  assetPrefix: `/${repoName}/`, // Always apply assetPrefix
+  assetPrefix: isProd ? `/${repoName}/` : '',
 
   typescript: {
-    ignoreBuildErrors: true, // Keep this for now to focus on the asset pathing
+    ignoreBuildErrors: false, // Ensure type errors fail the build
   },
   eslint: {
     ignoreDuringBuilds: true,
