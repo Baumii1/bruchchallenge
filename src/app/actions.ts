@@ -1,28 +1,26 @@
-
 // "use server"; directive removed to allow static export.
-// These functions will now run client-side. For persistence,
-// they would need to be modified to call an external backend API.
+// These functions run client-side and persist via local storage / Firebase sync.
 
-import { 
+import {
   setDataChallengeStatus,
   setDataToggleOverallChallengeTimer,
   setDataActiveGameAndToggleTimer,
   setDataUpdateGameProgress,
-  getDataChallengeById, 
-  setDataResetChallengeToUpcoming, 
-  getDataChallenges, 
-  setDataDeleteChallengeById, 
+  getDataChallengeById,
+  setDataResetChallengeToUpcoming,
+  getDataChallenges,
+  setDataDeleteChallengeById,
   getDataLiveChallengeDetails,
   getDataUpcomingChallenge,
   setDataLogGameTry,
   setDataAddOverallNote,
-  setDataEditOverallNote, 
+  setDataEditOverallNote,
   setDataDeleteOverallNote,
-  setDataCreateNewChallenge
+  setDataCreateNewChallenge,
 } from '@/lib/data';
-import type { Challenge, Game } from '@/types';
+import type { Challenge } from '@/types';
+import { getFirebaseAuthClient, isAdminEmail, isFirebaseConfigured } from '@/lib/firebase-client';
 
-// Type for the form data coming from CreateChallengePage
 interface ChallengeFormValues {
   title: string;
   scheduledDateTime: Date;
@@ -37,21 +35,34 @@ interface ChallengeFormValues {
   }>;
 }
 
-
 const revalidateAllRelevantPaths = (challengeId?: string) => {
-    // Static export: client state + polling/realtime sync handles updates.
-    console.log("client revalidate marker:", `/`, `/challenges/live`, challengeId ? `/challenges/${challengeId}` : '', '/admin/create-challenge');
-}
+  console.log('client revalidate marker:', `/`, `/challenges/live`, challengeId ? `/challenges/${challengeId}` : '', '/admin/create-challenge');
+};
+
+const requireAdminSession = () => {
+  if (!isFirebaseConfigured()) {
+    throw new Error('Firebase Auth ist nicht konfiguriert. Lege zuerst ein Admin-Login an.');
+  }
+
+  const auth = getFirebaseAuthClient();
+  const currentUser = auth?.currentUser ?? null;
+
+  if (!currentUser || !isAdminEmail(currentUser.email)) {
+    throw new Error('Admin privileges required. Bitte mit einem freigeschalteten Admin-Konto anmelden.');
+  }
+};
 
 export async function createNewChallengeAction(data: ChallengeFormValues): Promise<Challenge | null> {
+  requireAdminSession();
+
   const transformedData = {
     ...data,
     scheduledDateTime: data.scheduledDateTime.toISOString(),
     image: data.image || undefined,
-    games: data.games.map(g => ({
-        ...g,
-        targetProgress: g.targetProgress === null ? undefined : g.targetProgress,
-    }))
+    games: data.games.map((game) => ({
+      ...game,
+      targetProgress: game.targetProgress === null ? undefined : game.targetProgress,
+    })),
   };
 
   const newChallenge = setDataCreateNewChallenge(transformedData);
@@ -62,8 +73,8 @@ export async function createNewChallengeAction(data: ChallengeFormValues): Promi
   return null;
 }
 
-
 export async function startChallengeAction(challengeId: string): Promise<Challenge | null> {
+  requireAdminSession();
   const updatedChallenge = setDataChallengeStatus(challengeId, 'live');
   if (updatedChallenge) {
     revalidateAllRelevantPaths(challengeId);
@@ -73,6 +84,7 @@ export async function startChallengeAction(challengeId: string): Promise<Challen
 }
 
 export async function toggleChallengeTimerAction(challengeId: string): Promise<Challenge | null> {
+  requireAdminSession();
   const updatedChallenge = setDataToggleOverallChallengeTimer(challengeId);
   if (updatedChallenge) {
     revalidateAllRelevantPaths(challengeId);
@@ -82,6 +94,7 @@ export async function toggleChallengeTimerAction(challengeId: string): Promise<C
 }
 
 export async function toggleGameTimerAction(challengeId: string, gameId: string): Promise<Challenge | null> {
+  requireAdminSession();
   const updatedChallenge = setDataActiveGameAndToggleTimer(challengeId, gameId);
   if (updatedChallenge) {
     revalidateAllRelevantPaths(challengeId);
@@ -91,6 +104,7 @@ export async function toggleGameTimerAction(challengeId: string, gameId: string)
 }
 
 export async function updateGameProgressAction(challengeId: string, gameId: string, change: number, note?: string): Promise<Challenge | null> {
+  requireAdminSession();
   const updatedChallenge = setDataUpdateGameProgress(challengeId, gameId, change, note);
   if (updatedChallenge) {
     revalidateAllRelevantPaths(challengeId);
@@ -100,6 +114,7 @@ export async function updateGameProgressAction(challengeId: string, gameId: stri
 }
 
 export async function logGameTryAction(challengeId: string, gameId: string, note?: string): Promise<Challenge | null> {
+  requireAdminSession();
   const updatedChallenge = setDataLogGameTry(challengeId, gameId, note);
   if (updatedChallenge) {
     revalidateAllRelevantPaths(challengeId);
@@ -109,68 +124,79 @@ export async function logGameTryAction(challengeId: string, gameId: string, note
 }
 
 export async function addOverallNoteAction(challengeId: string, note: string): Promise<Challenge | null> {
-    const updatedChallenge = setDataAddOverallNote(challengeId, note);
-    if (updatedChallenge) {
-        revalidateAllRelevantPaths(challengeId);
-        return updatedChallenge;
-    }
-    return null;
+  requireAdminSession();
+  const updatedChallenge = setDataAddOverallNote(challengeId, note);
+  if (updatedChallenge) {
+    revalidateAllRelevantPaths(challengeId);
+    return updatedChallenge;
+  }
+  return null;
 }
 
 export async function editOverallNoteAction(challengeId: string, noteIndex: number, newNoteText: string): Promise<Challenge | null> {
-    const updatedChallenge = setDataEditOverallNote(challengeId, noteIndex, newNoteText);
-    if (updatedChallenge) {
-        revalidateAllRelevantPaths(challengeId);
-        return updatedChallenge;
-    }
-    return null;
+  requireAdminSession();
+  const updatedChallenge = setDataEditOverallNote(challengeId, noteIndex, newNoteText);
+  if (updatedChallenge) {
+    revalidateAllRelevantPaths(challengeId);
+    return updatedChallenge;
+  }
+  return null;
 }
 
 export async function deleteOverallNoteAction(challengeId: string, noteIndex: number): Promise<Challenge | null> {
-    const updatedChallenge = setDataDeleteOverallNote(challengeId, noteIndex);
-    if (updatedChallenge) {
-        revalidateAllRelevantPaths(challengeId);
-        return updatedChallenge;
-    }
-    return null;
+  requireAdminSession();
+  const updatedChallenge = setDataDeleteOverallNote(challengeId, noteIndex);
+  if (updatedChallenge) {
+    revalidateAllRelevantPaths(challengeId);
+    return updatedChallenge;
+  }
+  return null;
 }
 
-
 export async function endChallengeAction(challengeId: string): Promise<Challenge | null> {
-    const updatedChallenge = setDataChallengeStatus(challengeId, 'past');
-    if (updatedChallenge) {
-        revalidateAllRelevantPaths(challengeId); 
-        return updatedChallenge;
-    }
-    return null;
+  requireAdminSession();
+  const updatedChallenge = setDataChallengeStatus(challengeId, 'past');
+  if (updatedChallenge) {
+    revalidateAllRelevantPaths(challengeId);
+    return updatedChallenge;
+  }
+  return null;
 }
 
 export async function resetChallengeAction(challengeId: string): Promise<Challenge | null> {
-    const futureDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); 
-    const updatedChallenge = setDataResetChallengeToUpcoming(challengeId, futureDate);
-     if (updatedChallenge) {
-        revalidateAllRelevantPaths(challengeId); 
-        return updatedChallenge;
-    }
-    return null;
+  requireAdminSession();
+  const futureDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+  const updatedChallenge = setDataResetChallengeToUpcoming(challengeId, futureDate);
+  if (updatedChallenge) {
+    revalidateAllRelevantPaths(challengeId);
+    return updatedChallenge;
+  }
+  return null;
+}
+
+export async function restorePastChallengeAction(challengeId: string): Promise<Challenge | null> {
+  requireAdminSession();
+  const futureDate = new Date(Date.now() + 60 * 60 * 1000);
+  const updatedChallenge = setDataResetChallengeToUpcoming(challengeId, futureDate);
+  if (updatedChallenge) {
+    revalidateAllRelevantPaths(challengeId);
+    return updatedChallenge;
+  }
+  return null;
 }
 
 export async function fetchChallengeDetailsAction(challengeId: string): Promise<Challenge | null> {
-    // This function is called server-side during build for generateStaticParams,
-    // and potentially client-side if re-fetching details.
-    // It directly accesses lib/data.ts which is fine for build time and client-side in-memory.
-    const challenge = getDataChallengeById(challengeId);
-    return challenge || null;
+  const challenge = getDataChallengeById(challengeId);
+  return challenge || null;
 }
 
 export async function getChallengeCreationBlockers(): Promise<{ hasLiveChallenge: boolean; hasUpcomingChallenge: boolean }> {
-  // This function will run client-side, checking the in-memory data.
-  const allChallengesData = getDataChallenges(); 
-  const isLiveChallengePresent = allChallengesData.some(c => c.status === 'live');
-  const isUpcomingChallengePresent = allChallengesData.some(c => 
-    c.status === 'upcoming' && 
-    c.scheduledDateTime && 
-    new Date(c.scheduledDateTime) > new Date()
+  const allChallengesData = getDataChallenges();
+  const isLiveChallengePresent = allChallengesData.some((challenge) => challenge.status === 'live');
+  const isUpcomingChallengePresent = allChallengesData.some((challenge) =>
+    challenge.status === 'upcoming' &&
+    challenge.scheduledDateTime &&
+    new Date(challenge.scheduledDateTime) > new Date()
   );
 
   return {
@@ -180,24 +206,25 @@ export async function getChallengeCreationBlockers(): Promise<{ hasLiveChallenge
 }
 
 export async function deleteChallengeAction(challengeId: string): Promise<{ success: boolean }> {
-    // This function will run client-side.
-    const existingChallenge = getDataChallengeById(challengeId);
-    if (!existingChallenge) {
-        return { success: false };
-    }
-    
-    const success = setDataDeleteChallengeById(challengeId);
-    if (success) {
-        revalidateAllRelevantPaths(); 
-    }
-    return { success };
+  requireAdminSession();
+
+  const existingChallenge = getDataChallengeById(challengeId);
+  if (!existingChallenge) {
+    return { success: false };
+  }
+
+  const success = setDataDeleteChallengeById(challengeId);
+  if (success) {
+    revalidateAllRelevantPaths();
+  }
+
+  return { success };
 }
 
 export async function fetchLivePageDataAction(): Promise<Challenge | null> {
-    // This function will run client-side.
-    let challengeToLoad: Challenge | null = getDataLiveChallengeDetails(); 
-    if (!challengeToLoad) {
-        challengeToLoad = getDataUpcomingChallenge(); 
-    }
-    return challengeToLoad;
+  let challengeToLoad: Challenge | null = getDataLiveChallengeDetails();
+  if (!challengeToLoad) {
+    challengeToLoad = getDataUpcomingChallenge();
+  }
+  return challengeToLoad;
 }
