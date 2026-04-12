@@ -1,13 +1,13 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useTransition } from 'react';
+import { useState, useEffect, useCallback, useTransition, useMemo } from 'react';
 import {
     startChallengeAction,
     toggleChallengeTimerAction,
     toggleGameTimerAction,
     updateGameProgressAction,
-    logGameTryAction, 
+    logGameTryAction,
     endChallengeAction,
     resetChallengeAction,
     fetchLivePageDataAction,
@@ -22,9 +22,9 @@ import { Progress } from '@/components/ui/progress';
 import { GameIconFactory } from '@/components/icons/GameIconFactory';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { RefreshCw, PlayCircle, PauseCircle, Settings2, RadioTower, ChevronUp, Trophy, StopCircle, ListFilter, RotateCcw, Loader2, MessageSquarePlus, NotepadText, Edit3, Trash2, Check, X } from 'lucide-react';
+import { RefreshCw, PlayCircle, PauseCircle, Settings2, RadioTower, ChevronUp, Trophy, StopCircle, ListFilter, RotateCcw, Loader2, MessageSquarePlus, NotepadText, Edit3, Trash2, Check, X, HeartPulse } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import { Input } from '@/components/ui/input'; 
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
@@ -41,8 +41,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useAuth } from '@/context/AuthContext'; // Import useAuth
-
+import { useAuth } from '@/context/AuthContext';
+import { fetchAllPulseReadings, getPulsePlayers, type PulseReading } from '@/lib/pulse';
 
 const formatTime = (totalSeconds: number): string => {
   const hours = Math.floor(totalSeconds / 3600);
@@ -51,8 +51,17 @@ const formatTime = (totalSeconds: number): string => {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
+const formatPulseAge = (updatedAt: number | null): string => {
+  if (!updatedAt) {
+    return 'no signal';
+  }
+
+  const seconds = Math.max(0, Math.round((Date.now() - updatedAt) / 1000));
+  return seconds <= 1 ? 'just now' : `${seconds}s ago`;
+};
+
 export default function LiveChallengePage() {
-  const { isAdmin } = useAuth(); // Use isAdmin state from context
+  const { isAdmin } = useAuth();
   const [liveChallenge, setLiveChallenge] = useState<Challenge | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, startTransition] = useTransition();
@@ -63,17 +72,19 @@ export default function LiveChallengePage() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [manualLogNotes, setManualLogNotes] = useState<Record<string, string>>({});
+  const [pulseReadings, setPulseReadings] = useState<PulseReading[]>([]);
   
   const [newOverallNote, setNewOverallNote] = useState('');
   const [editingNoteIndex, setEditingNoteIndex] = useState<number | null>(null);
   const [editingNoteText, setEditingNoteText] = useState<string>('');
   const [noteToDeleteIndex, setNoteToDeleteIndex] = useState<number | null>(null);
 
+  const pulsePlayers = useMemo(() => getPulsePlayers(), []);
 
   const fetchAndSetChallenge = useCallback(async (showLoadingSpinner = true) => {
     if (showLoadingSpinner) setIsLoading(true);
     try {
-      let challengeToLoad = await fetchLivePageDataAction();
+      const challengeToLoad = await fetchLivePageDataAction();
       setLiveChallenge(challengeToLoad);
     } catch (error) {
         console.error("Failed to fetch live page data:", error);
@@ -83,6 +94,15 @@ export default function LiveChallengePage() {
     if (showLoadingSpinner) setIsLoading(false);
   }, [toast]);
 
+  const refreshPulse = useCallback(async () => {
+    if (pulsePlayers.length === 0) {
+      setPulseReadings([]);
+      return;
+    }
+
+    const nextReadings = await fetchAllPulseReadings();
+    setPulseReadings(nextReadings);
+  }, [pulsePlayers]);
 
   useEffect(() => {
     fetchAndSetChallenge();
@@ -91,7 +111,7 @@ export default function LiveChallengePage() {
   useEffect(() => {
     const intervalId = setInterval(() => {
       fetchAndSetChallenge(false);
-    }, 1000);
+    }, 5000);
 
     const handleDataUpdate = () => {
       fetchAndSetChallenge(false);
@@ -108,15 +128,24 @@ export default function LiveChallengePage() {
   }, [fetchAndSetChallenge]);
 
   useEffect(() => {
+    void refreshPulse();
+    const pulseInterval = window.setInterval(() => {
+      void refreshPulse();
+    }, 5000);
+
+    return () => window.clearInterval(pulseInterval);
+  }, [refreshPulse]);
+
+  useEffect(() => {
     if (!liveChallenge || (liveChallenge.status !== 'live' && liveChallenge.status !== 'upcoming')) {
-      if(liveChallenge && liveChallenge.challengeAccumulatedDuration !== undefined){ 
+      if(liveChallenge && liveChallenge.challengeAccumulatedDuration !== undefined){
         const newDisplayTimers: Record<string, string> = {};
         newDisplayTimers.overall = formatTime(liveChallenge.challengeAccumulatedDuration || 0);
         liveChallenge.games.forEach(game => {
           newDisplayTimers[game.id] = formatTime(game.accumulatedDuration || 0);
         });
         setDisplayTimers(newDisplayTimers);
-      } else { 
+      } else {
         setDisplayTimers({});
       }
       return;
@@ -146,14 +175,13 @@ export default function LiveChallengePage() {
     return () => clearInterval(intervalId);
   }, [liveChallenge]);
 
-
 const handleServerAction = async (
     action: () => Promise<Challenge | null>,
     successMessage: string,
     errorMessage?: string,
     options: {
         refetchOnSuccess?: boolean;
-        optimisticUpdate?: boolean; 
+        optimisticUpdate?: boolean;
         onSuccessSetNull?: boolean;
     } = {}
   ) => {
@@ -164,23 +192,22 @@ const handleServerAction = async (
         if (options.onSuccessSetNull) {
             setLiveChallenge(null);
             toast({ title: successMessage, variant: "default" });
-            // No immediate refetch here, rely on path revalidation for future loads if needed
         } else if (resultChallenge) {
             toast({ title: successMessage, variant: "default" });
             if (options.optimisticUpdate !== false) {
                  setLiveChallenge(resultChallenge);
             }
             if (options.refetchOnSuccess) {
-                await fetchAndSetChallenge(false); // Re-fetch without showing main spinner
+                await fetchAndSetChallenge(false);
             }
-        } else { 
+        } else {
            toast({ title: errorMessage || "Action reported no change or failed", description: "Please check the challenge state.", variant: "destructive" });
-           await fetchAndSetChallenge(false); 
+           await fetchAndSetChallenge(false);
         }
       } catch (error) {
         console.error(errorMessage || "Action error:", error);
         toast({ title: "Error", description: (error as Error).message || "An unexpected error occurred.", variant: "destructive" });
-        await fetchAndSetChallenge(false); 
+        await fetchAndSetChallenge(false);
       }
     });
   };
@@ -191,7 +218,7 @@ const handleServerAction = async (
         () => startChallengeAction(liveChallenge.id),
         "Challenge Started!",
         "Failed to start challenge",
-        { refetchOnSuccess: false, optimisticUpdate: true } 
+        { refetchOnSuccess: false, optimisticUpdate: true }
       );
     }
   };
@@ -229,7 +256,7 @@ const handleServerAction = async (
         "Failed to update progress",
         { refetchOnSuccess: true, optimisticUpdate: true }
       );
-      setManualLogNotes(prev => ({...prev, [gameId]: ''})); 
+      setManualLogNotes(prev => ({...prev, [gameId]: ''}));
     }
   };
 
@@ -243,7 +270,7 @@ const handleServerAction = async (
         "Failed to log attempt",
         { refetchOnSuccess: true, optimisticUpdate: true }
       );
-      setManualLogNotes(prev => ({...prev, [gameId]: ''})); 
+      setManualLogNotes(prev => ({...prev, [gameId]: ''}));
     }
   };
 
@@ -255,7 +282,7 @@ const handleServerAction = async (
             "Failed to add overall note.",
             { refetchOnSuccess: true, optimisticUpdate: true }
         );
-        setNewOverallNote(''); 
+        setNewOverallNote('');
     } else if (!newOverallNote.trim()) {
         toast({ title: "Cannot add empty note", variant: "destructive"});
     }
@@ -303,7 +330,7 @@ const handleServerAction = async (
             () => endChallengeAction(liveChallenge.id),
             "Challenge Ended and Marked as Past.",
             "Failed to end challenge.",
-            { onSuccessSetNull: true, refetchOnSuccess: false } 
+            { onSuccessSetNull: true, refetchOnSuccess: false }
         );
     }
     setShowEndConfirm(false);
@@ -319,11 +346,10 @@ const handleServerAction = async (
         );
     } else {
         toast({title: "No Challenge", description: "No challenge loaded to reset.", variant: "default"});
-        fetchAndSetChallenge(); 
+        fetchAndSetChallenge();
     }
     setShowResetConfirm(false);
   }
-
 
   if (isLoading && !isSubmitting) {
     return (
@@ -349,10 +375,8 @@ const handleServerAction = async (
     );
   }
 
-
   const isChallengeActuallyLive = liveChallenge.status === 'live';
   const isChallengeUpcoming = liveChallenge.status === 'upcoming';
-
 
   return (
     <div className="space-y-8">
@@ -470,21 +494,49 @@ const handleServerAction = async (
         <Card className="mb-6 border-primary/30 bg-gradient-to-r from-primary/10 via-card to-destructive/10 shadow-md">
           <CardHeader className="pb-3">
             <CardTitle className="text-xl flex items-center gap-2">
-              <RadioTower className="h-5 w-5 text-destructive animate-pulse" />
-              Live Pulse Feed (Pulsoid)
+              <HeartPulse className="h-5 w-5 text-destructive animate-pulse" />
+              Live Pulse Feed
             </CardTitle>
             <CardDescription>
-              Platzhalter für Live-Herzfrequenzdaten pro Spieler. Nächster Schritt: Pulsoid WebSocket/API je Player anbinden.
+              Live-Herzfrequenz pro Spieler. Die Quellen werden über NEXT_PUBLIC_PULSE_PLAYERS konfiguriert.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {['Patrick', 'Merlin', 'Gast'].map((name) => (
-              <div key={name} className="rounded-lg border bg-card/80 p-3">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">{name}</p>
-                <p className="mt-1 text-2xl font-bold text-destructive tabular-nums animate-pulse">-- bpm</p>
-                <p className="text-xs text-muted-foreground">Pulsoid Link/Token folgt</p>
+          <CardContent>
+            {pulsePlayers.length === 0 ? (
+              <div className="rounded-lg border bg-card/80 p-4 text-sm text-muted-foreground">
+                Keine Pulse-Quellen konfiguriert. Siehe docs/PULSE_SETUP.md.
               </div>
-            ))}
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {pulsePlayers.map((player) => {
+                  const reading = pulseReadings.find((entry) => entry.id === player.id);
+                  const state = reading?.status ?? 'missing';
+
+                  return (
+                    <div key={player.id} className="rounded-lg border bg-card/80 p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">{player.name}</p>
+                          <p className="mt-2 flex items-center gap-2 text-3xl font-bold tabular-nums text-destructive">
+                            <HeartPulse className="h-6 w-6" />
+                            {reading?.bpm ?? '--'}
+                          </p>
+                        </div>
+                        <Badge variant={state === 'ok' ? 'default' : state === 'error' ? 'destructive' : 'secondary'}>
+                          {state}
+                        </Badge>
+                      </div>
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        {reading ? formatPulseAge(reading.updatedAt) : 'waiting'}
+                      </p>
+                      {reading?.message && (
+                        <p className="mt-2 text-xs text-muted-foreground break-words">{reading.message}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -545,13 +597,13 @@ const handleServerAction = async (
                     <CardFooter className="px-5 pb-5 pt-0 border-t mt-auto">
                         <div className="flex flex-col gap-3 pt-4 w-full">
                             {game.enableManualLog && (
-                                <Input 
+                                <Input
                                     type="text"
                                     placeholder="Log note (e.g., Win 13:3, 5th place)"
                                     value={manualLogNotes[game.id] || ''}
                                     onChange={(e) => setManualLogNotes(prev => ({...prev, [game.id]: e.target.value}))}
                                     className="text-sm"
-                                    disabled={isSubmitting || !liveChallenge.isChallengeTimerActive } 
+                                    disabled={isSubmitting || !liveChallenge.isChallengeTimerActive }
                                 />
                             )}
                             <div className="flex flex-wrap gap-2 w-full">
@@ -565,17 +617,17 @@ const handleServerAction = async (
                                     {isSubmitting && liveChallenge.activeGameId === game.id && isGameVisuallyActive ? <Loader2 className="h-4 w-4 animate-spin" /> : isGameVisuallyActive ? <PauseCircle className="mr-2 h-4 w-4 text-red-500" /> : <PlayCircle className="mr-2 h-4 w-4 text-green-500" />}
                                     {isSubmitting && liveChallenge.activeGameId === game.id && isGameVisuallyActive ? "Pausing..." :
                                     isSubmitting && liveChallenge.activeGameId === game.id && !isGameVisuallyActive ? "Starting..." :
-                                    isSubmitting && liveChallenge.activeGameId !== game.id ? "Switching..." : 
+                                    isSubmitting && liveChallenge.activeGameId !== game.id ? "Switching..." :
                                     (isGameVisuallyActive ? 'Pause Game' :
                                     (liveChallenge.activeGameId && liveChallenge.activeGameId !== game.id ? 'Switch to This' : 'Start Game'))}
                                 </Button>
-                                { (game.targetProgress !== undefined && game.targetProgress !== null || (game.enableManualLog && (game.targetProgress === undefined || game.targetProgress === null) )) && ( 
+                                { (game.targetProgress !== undefined && game.targetProgress !== null || (game.enableManualLog && (game.targetProgress === undefined || game.targetProgress === null) )) && (
                                     <Button onClick={() => handleUpdateProgress(game.id)} variant="outline" size="sm" disabled={isSubmitting || !isGameVisuallyActive || !liveChallenge.isChallengeTimerActive} className="shadow-sm">
                                         <ChevronUp className="mr-1 h-4 w-4 text-green-500" /> Win/Incr.
                                     </Button>
                                 )}
                                 {game.enableTryCounter && (
-                                    <Button onClick={() => handleLogTry(game.id)} variant="outline" size="sm" disabled={isSubmitting || !liveChallenge.isChallengeTimerActive } className="shadow-sm"> 
+                                    <Button onClick={() => handleLogTry(game.id)} variant="outline" size="sm" disabled={isSubmitting || !liveChallenge.isChallengeTimerActive } className="shadow-sm">
                                         <MessageSquarePlus className="mr-1 h-4 w-4 text-blue-500" /> Log Attempt
                                     </Button>
                                 )}
@@ -664,7 +716,7 @@ const handleServerAction = async (
                     )}
                     {editingNoteIndex === null && (
                         <div className="flex gap-2 items-start pt-2">
-                            <Textarea 
+                            <Textarea
                                 placeholder="Add a general note for the challenge (e.g., server issues, player morale, etc.)"
                                 value={newOverallNote}
                                 onChange={(e) => setNewOverallNote(e.target.value)}
@@ -672,8 +724,8 @@ const handleServerAction = async (
                                 className="flex-grow"
                                 disabled={isSubmitting || !liveChallenge.isChallengeTimerActive}
                             />
-                            <Button 
-                                onClick={handleAddOverallNoteInternal} 
+                            <Button
+                                onClick={handleAddOverallNoteInternal}
                                 disabled={isSubmitting || !liveChallenge.isChallengeTimerActive || !newOverallNote.trim()}
                                 className="shadow-sm shrink-0"
                             >

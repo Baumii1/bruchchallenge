@@ -1,53 +1,97 @@
-
 "use client";
 
 import type { ReactNode } from 'react';
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, type User } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
+import { getFirebaseAuthClient, isAdminEmail, isFirebaseConfigured } from '@/lib/firebase-client';
 
 interface AuthContextType {
   isAdmin: boolean;
-  login: (password: string) => boolean;
-  logout: () => void;
+  isAuthReady: boolean;
+  authEnabled: boolean;
+  adminEmail: string | null;
+  login: (email: string, password: string) => Promise<boolean>;
+  logout: () => Promise<void>;
+  authError: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// For this demo, we'll use a very simple hardcoded password.
-// In a real application, this would be handled by a secure backend.
-const ADMIN_PASSWORD = "admin"; // Replace with a more complex password if you wish
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const router = useRouter();
 
-  // Check local storage for persisted admin state on mount
+  const authEnabled = isFirebaseConfigured();
+
   useEffect(() => {
-    const persistedIsAdmin = localStorage.getItem('isAdmin');
-    if (persistedIsAdmin === 'true') {
-      setIsAdmin(true);
+    const auth = getFirebaseAuthClient();
+
+    if (!auth) {
+      setIsAuthReady(true);
+      return;
     }
+
+    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+      setUser(nextUser);
+      setIsAuthReady(true);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const login = (password: string) => {
-    if (password === ADMIN_PASSWORD) {
-      setIsAdmin(true);
-      localStorage.setItem('isAdmin', 'true');
-      return true;
+  const login = async (email: string, password: string) => {
+    const auth = getFirebaseAuthClient();
+
+    if (!auth) {
+      setAuthError('Firebase Auth ist nicht konfiguriert. Trage zuerst die Umgebungsvariablen ein.');
+      return false;
     }
-    setIsAdmin(false);
-    localStorage.removeItem('isAdmin');
-    return false;
+
+    try {
+      const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+
+      if (!isAdminEmail(credential.user.email)) {
+        await signOut(auth);
+        setUser(null);
+        setAuthError('Dieses Konto ist nicht als Admin freigeschaltet.');
+        return false;
+      }
+
+      setAuthError(null);
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unbekannter Login-Fehler.';
+      setAuthError(message);
+      return false;
+    }
   };
 
-  const logout = () => {
-    setIsAdmin(false);
-    localStorage.removeItem('isAdmin');
-    router.push('/'); // Redirect to home on logout
+  const logout = async () => {
+    const auth = getFirebaseAuthClient();
+
+    if (auth) {
+      await signOut(auth);
+    }
+
+    setUser(null);
+    router.push('/');
   };
+
+  const value = useMemo<AuthContextType>(() => ({
+    isAdmin: isAdminEmail(user?.email),
+    isAuthReady,
+    authEnabled,
+    adminEmail: user?.email ?? null,
+    login,
+    logout,
+    authError,
+  }), [authEnabled, authError, isAuthReady, user]);
 
   return (
-    <AuthContext.Provider value={{ isAdmin, login, logout }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
@@ -55,8 +99,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
+
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
+
   return context;
 }

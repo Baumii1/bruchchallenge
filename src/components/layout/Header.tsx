@@ -1,19 +1,18 @@
-
-"use client"; // Make this a client component to use useAuth
+"use client";
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { GameIconFactory } from '@/components/icons/GameIconFactory';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Separator } from '@/components/ui/separator';
-import { useAuth } from '@/context/AuthContext'; // Import useAuth
+import { useAuth } from '@/context/AuthContext';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Menu } from 'lucide-react';
+import { Loader2, Menu } from 'lucide-react';
 
 export function Header() {
-  const { isAdmin, logout } = useAuth(); // Get isAdmin status and logout function
+  const { isAdmin, logout, adminEmail, isAuthReady } = useAuth();
   const pathname = usePathname();
   const navLinks = [
     { href: '/', label: 'Home' },
@@ -24,7 +23,7 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
-        <Link href="/" className="flex items-center gap-2.5 mr-4"> 
+        <Link href="/" className="flex items-center gap-2.5 mr-4">
           <GameIconFactory iconName="trophy" className="h-7 w-7 sm:h-8 sm:w-8 text-primary transition-transform hover:scale-110" />
           <span className="text-lg sm:text-xl font-bold tracking-tight whitespace-nowrap">Bruch Challenge Hub</span>
         </Link>
@@ -44,7 +43,7 @@ export function Header() {
               </Button>
             ))}
           </nav>
-          <Separator orientation="vertical" className="h-6 hidden sm:block mx-2"/>
+          <Separator orientation="vertical" className="h-6 hidden sm:block mx-2" />
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" size="icon" className="sm:hidden" aria-label="Open menu">
@@ -70,13 +69,22 @@ export function Header() {
             </SheetContent>
           </Sheet>
           <ThemeToggle />
-          {isAdmin ? (
-            <Button variant="outline" size="sm" onClick={logout} className="ml-2">
-              Logout
-            </Button>
+          {isAuthReady ? (
+            isAdmin ? (
+              <div className="ml-2 flex items-center gap-2">
+                {adminEmail && <span className="hidden md:inline text-xs text-muted-foreground">{adminEmail}</span>}
+                <Button variant="outline" size="sm" onClick={() => void logout()}>
+                  Logout
+                </Button>
+              </div>
+            ) : (
+              <Button variant="outline" size="sm" asChild className="ml-2">
+                <Link href="/admin/login">Login</Link>
+              </Button>
+            )
           ) : (
-            <Button variant="outline" size="sm" asChild className="ml-2">
-              <Link href="/admin/login">Login</Link>
+            <Button variant="outline" size="sm" className="ml-2" disabled>
+              <Loader2 className="h-4 w-4 animate-spin" />
             </Button>
           )}
         </div>
