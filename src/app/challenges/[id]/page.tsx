@@ -1,8 +1,6 @@
 
-import type { FC } from 'react';
 import { notFound } from 'next/navigation';
 import { getDataChallenges, getDataChallengeById } from '@/lib/data';
-import type { Challenge } from '@/types';
 import ChallengeDetailsClient from '@/components/ChallengeDetailsClient';
 // Removed unused Lucide icons here as they are used in ChallengeDetailsClient
 
@@ -15,12 +13,13 @@ export function generateStaticParams(): { id: string }[] {
 }
 
 interface ChallengeDetailsPageProps {
-  params: { id: string };
-  searchParams: { [key: string]: string | string[] | undefined }; // Include searchParams
+  params: Promise<{ id: string }>;
 }
 
-const ChallengeDetailsPage: FC<ChallengeDetailsPageProps> = ({ params }) => {
-  const challengeId = params.id;
+const ChallengeDetailsPage = async ({ params }: ChallengeDetailsPageProps) => {
+  const resolvedParams = await params;
+  
+  const challengeId = resolvedParams.id;
   const initialChallenge = getDataChallengeById(challengeId);
 
   if (!initialChallenge) {

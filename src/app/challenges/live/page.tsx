@@ -89,6 +89,25 @@ export default function LiveChallengePage() {
   }, [fetchAndSetChallenge]);
 
   useEffect(() => {
+    const intervalId = setInterval(() => {
+      fetchAndSetChallenge(false);
+    }, 1000);
+
+    const handleDataUpdate = () => {
+      fetchAndSetChallenge(false);
+    };
+
+    window.addEventListener('storage', handleDataUpdate);
+    window.addEventListener('bruchchallenge:data-updated', handleDataUpdate as EventListener);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('storage', handleDataUpdate);
+      window.removeEventListener('bruchchallenge:data-updated', handleDataUpdate as EventListener);
+    };
+  }, [fetchAndSetChallenge]);
+
+  useEffect(() => {
     if (!liveChallenge || (liveChallenge.status !== 'live' && liveChallenge.status !== 'upcoming')) {
       if(liveChallenge && liveChallenge.challengeAccumulatedDuration !== undefined){ 
         const newDisplayTimers: Record<string, string> = {};
@@ -448,6 +467,27 @@ const handleServerAction = async (
 
       {isChallengeActuallyLive && (
       <section>
+        <Card className="mb-6 border-primary/30 bg-gradient-to-r from-primary/10 via-card to-destructive/10 shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-xl flex items-center gap-2">
+              <RadioTower className="h-5 w-5 text-destructive animate-pulse" />
+              Live Pulse Feed (Pulsoid)
+            </CardTitle>
+            <CardDescription>
+              Platzhalter für Live-Herzfrequenzdaten pro Spieler. Nächster Schritt: Pulsoid WebSocket/API je Player anbinden.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {['Patrick', 'Merlin', 'Gast'].map((name) => (
+              <div key={name} className="rounded-lg border bg-card/80 p-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">{name}</p>
+                <p className="mt-1 text-2xl font-bold text-destructive tabular-nums animate-pulse">-- bpm</p>
+                <p className="text-xs text-muted-foreground">Pulsoid Link/Token folgt</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
         <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl md:text-3xl font-semibold flex items-center gap-2">
                 <ListFilter className="h-7 w-7 text-primary"/> Game Dashboard

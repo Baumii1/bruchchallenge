@@ -1,4 +1,6 @@
+"use client";
 
+import { useCallback, useEffect, useState } from 'react';
 import { getDataChallenges } from '@/lib/data';
 import type { Challenge } from '@/types';
 import { ChallengeCard } from '@/components/ChallengeCard';
@@ -6,9 +8,8 @@ import { CountdownTimer } from '@/components/CountdownTimer';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { GameIconFactory } from '@/components/icons/GameIconFactory';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Trophy, CalendarSearch, Sparkles, Zap } from 'lucide-react';
+import { Trophy, CalendarSearch, Sparkles, Zap, Flame, History, Gamepad2 } from 'lucide-react';
 
 // Removed: export const dynamic = 'force-dynamic';
 // This line makes the page server-rendered at request time,
@@ -16,8 +17,26 @@ import { Trophy, CalendarSearch, Sparkles, Zap } from 'lucide-react';
 // For static export, pages should be buildable as static HTML.
 // Data fetching like getDataChallenges() will run at build time.
 
-export default async function HomePage() {
-  const allCurrentChallenges = getDataChallenges(); // This will run at build time
+export default function HomePage() {
+  const [allCurrentChallenges, setAllCurrentChallenges] = useState<Challenge[]>(() => getDataChallenges());
+
+  const refreshChallenges = useCallback(() => {
+    setAllCurrentChallenges(getDataChallenges());
+  }, []);
+
+  useEffect(() => {
+    refreshChallenges();
+    const poller = setInterval(refreshChallenges, 1000);
+    const handleDataUpdate = () => refreshChallenges();
+
+    window.addEventListener('storage', handleDataUpdate);
+    window.addEventListener('bruchchallenge:data-updated', handleDataUpdate as EventListener);
+    return () => {
+      clearInterval(poller);
+      window.removeEventListener('storage', handleDataUpdate);
+      window.removeEventListener('bruchchallenge:data-updated', handleDataUpdate as EventListener);
+    };
+  }, [refreshChallenges]);
 
   let displayChallenge: Challenge | undefined;
   let liveChallenge: Challenge | undefined;
@@ -46,9 +65,42 @@ export default async function HomePage() {
   }
   
   // Past challenges are already filtered and sorted by getDataChallenges (descending)
+  const totalChallenges = allCurrentChallenges.length;
+  const totalGamesPlayed = pastChallenges.reduce((sum, challenge) => sum + challenge.games.length, 0);
 
   return (
     <div className="space-y-12 md:space-y-16">
+      <section className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-background to-accent/10 p-6 sm:p-8 shadow-xl">
+        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+          <div className="space-y-3">
+            <p className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
+              <Flame className="h-4 w-4" /> Bruch Challenge Hub
+            </p>
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-foreground">
+              Alles im Blick: Challenges, Live-Status und Hall of Fame
+            </h1>
+            <p className="max-w-2xl text-muted-foreground">
+              Verfolge aktuelle Runs in Echtzeit, plane die nächste Session und springe mit einem Klick direkt ins Live-Dashboard.
+            </p>
+          </div>
+          {liveLinkButton()}
+        </div>
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border bg-card/80 p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Challenges gesamt</p>
+            <p className="mt-1 text-2xl font-bold">{totalChallenges}</p>
+          </div>
+          <div className="rounded-lg border bg-card/80 p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Vergangene Challenges</p>
+            <p className="mt-1 text-2xl font-bold">{pastChallenges.length}</p>
+          </div>
+          <div className="rounded-lg border bg-card/80 p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Games gespielt</p>
+            <p className="mt-1 text-2xl font-bold">{totalGamesPlayed}</p>
+          </div>
+        </div>
+      </section>
+
       {/* Upcoming or Live Challenge Section */}
       {displayChallenge && (displayChallenge.status === 'upcoming' || displayChallenge.status === 'live') && (
         <section className="bg-card p-6 sm:p-8 rounded-xl shadow-2xl border border-primary/30 dark:border-primary/50">
@@ -60,10 +112,9 @@ export default async function HomePage() {
                 <Sparkles className="h-10 w-10 text-accent hidden sm:block" />
               )}
               <h1 className="text-3xl sm:text-4xl font-extrabold text-primary">
-                {displayChallenge.status === 'live' ? "Challenge is LIVE!" : "Next Epic Showdown!"}
+                {displayChallenge.status === 'live' ? "Challenge läuft gerade!" : "Nächste Challenge steht an!"}
               </h1>
             </div>
-            { (displayChallenge.status === 'live' || displayChallenge.status === 'upcoming') && liveLinkButton()}
           </div>
           <CountdownTimer 
             targetDateISO={displayChallenge.scheduledDateTime || new Date(displayChallenge.date).toISOString()} 
@@ -72,7 +123,7 @@ export default async function HomePage() {
           <div className="mt-8">
             <h2 className="text-2xl font-semibold mb-1">{displayChallenge.title}</h2>
             <p className="text-muted-foreground mb-4">
-              {displayChallenge.status === 'live' ? "The battle is currently underway!" : "Get ready for the next battle!"}
+              {displayChallenge.status === 'live' ? "Die Session ist aktiv – viel Erfolg!" : "Countdown läuft – mach dich bereit!"}
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
               <ChallengeCard challenge={displayChallenge} isUpcomingHero={true} />
@@ -104,7 +155,12 @@ export default async function HomePage() {
               </h2>
               <p className="text-muted-foreground mt-1">Relive the legendary battles and glorious victories.</p>
             </div>
-            {!displayChallenge && liveLinkButton()} 
+            {!displayChallenge && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2 sm:mt-0">
+                <History className="h-4 w-4" />
+                Vergangene Runs mit allen Details
+              </div>
+            )} 
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-8">
             {pastChallenges.map((challenge) => (
@@ -130,8 +186,8 @@ export default async function HomePage() {
 const liveLinkButton = () => (
   <Button asChild size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground shadow-md hover:shadow-lg transition-shadow shrink-0 mt-4 md:mt-0">
     <Link href="/challenges/live">
-      <GameIconFactory iconName="target" className="mr-2 h-5 w-5" />
-      Go to Live Dashboard
+      <Gamepad2 className="mr-2 h-5 w-5" />
+      Zum Live-Dashboard
     </Link>
   </Button>
 );
