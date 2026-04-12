@@ -13,7 +13,7 @@ import { CalendarDays, Clock, Hourglass, ListChecks, AlertTriangle, Users, Zap, 
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { deleteChallengeAction } from '@/app/actions';
+import { deleteChallengeAction, fetchChallengeDetailsAction } from '@/app/actions';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -64,6 +64,29 @@ export default function ChallengeDetailsClient({ initialChallenge }: ChallengeDe
   useEffect(() => {
     setChallenge(initialChallenge);
   }, [initialChallenge]);
+
+  useEffect(() => {
+    const refreshChallenge = async () => {
+      const latest = await fetchChallengeDetailsAction(initialChallenge.id);
+      if (latest) {
+        setChallenge(latest);
+      }
+    };
+
+    const intervalId = setInterval(refreshChallenge, 1000);
+    const handleDataUpdate = () => {
+      void refreshChallenge();
+    };
+
+    window.addEventListener('storage', handleDataUpdate);
+    window.addEventListener('bruchchallenge:data-updated', handleDataUpdate as EventListener);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('storage', handleDataUpdate);
+      window.removeEventListener('bruchchallenge:data-updated', handleDataUpdate as EventListener);
+    };
+  }, [initialChallenge.id]);
 
   const handleDeleteChallenge = async () => {
     if (!challenge || !isAdmin || challenge.status !== 'past') {

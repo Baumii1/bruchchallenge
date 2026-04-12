@@ -1,4 +1,6 @@
+"use client";
 
+import { useCallback, useEffect, useState } from 'react';
 import { getDataChallenges } from '@/lib/data';
 import type { Challenge } from '@/types';
 import { ChallengeCard } from '@/components/ChallengeCard';
@@ -15,8 +17,26 @@ import { Trophy, CalendarSearch, Sparkles, Zap, Flame, History, Gamepad2 } from 
 // For static export, pages should be buildable as static HTML.
 // Data fetching like getDataChallenges() will run at build time.
 
-export default async function HomePage() {
-  const allCurrentChallenges = getDataChallenges(); // This will run at build time
+export default function HomePage() {
+  const [allCurrentChallenges, setAllCurrentChallenges] = useState<Challenge[]>(() => getDataChallenges());
+
+  const refreshChallenges = useCallback(() => {
+    setAllCurrentChallenges(getDataChallenges());
+  }, []);
+
+  useEffect(() => {
+    refreshChallenges();
+    const poller = setInterval(refreshChallenges, 1000);
+    const handleDataUpdate = () => refreshChallenges();
+
+    window.addEventListener('storage', handleDataUpdate);
+    window.addEventListener('bruchchallenge:data-updated', handleDataUpdate as EventListener);
+    return () => {
+      clearInterval(poller);
+      window.removeEventListener('storage', handleDataUpdate);
+      window.removeEventListener('bruchchallenge:data-updated', handleDataUpdate as EventListener);
+    };
+  }, [refreshChallenges]);
 
   let displayChallenge: Challenge | undefined;
   let liveChallenge: Challenge | undefined;
