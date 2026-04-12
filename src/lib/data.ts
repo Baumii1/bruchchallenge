@@ -257,7 +257,7 @@ const deepCopy = <T>(data: T): T => {
     }
 };
 
-export const setDataCreateNewChallenge = (newChallengeData: Omit<Challenge, 'id' | 'status' | 'games'> & { games: Omit<Game, 'id'>[] }): Challenge => {
+export const setDataCreateNewChallenge = (newChallengeData: Omit<Challenge, 'id' | 'status' | 'games' | 'date'> & { games: Omit<Game, 'id'>[] }): Challenge => {
   const newChallengeId = `challenge-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
   const processedGames: Game[] = newChallengeData.games.map((game, index) => ({
     ...defaultGameFlags, 

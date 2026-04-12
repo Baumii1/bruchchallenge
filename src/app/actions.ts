@@ -54,6 +54,7 @@ const revalidateAllRelevantPaths = (challengeId?: string) => {
 export async function createNewChallengeAction(data: ChallengeFormValues): Promise<Challenge | null> {
   const transformedData = {
     ...data,
+    scheduledDateTime: data.scheduledDateTime.toISOString(),
     image: data.image || undefined,
     games: data.games.map(g => ({
         ...g,
