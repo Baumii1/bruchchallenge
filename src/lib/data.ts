@@ -244,6 +244,12 @@ export let challenges: Challenge[] = [
   },
 ];
 
+const CHALLENGES_STORAGE_KEY = 'bruchchallenge:challenges:v1';
+let hasHydratedClientData = false;
+let hasInitializedRemoteSync = false;
+let remoteSyncTimer: ReturnType<typeof setTimeout> | null = null;
+let pushRemoteSnapshot: ((payload: Challenge[]) => Promise<void>) | null = null;
+
 const deepCopy = <T>(data: T): T => {
     if (data === undefined || data === null) return data;
     try {
@@ -257,7 +263,104 @@ const deepCopy = <T>(data: T): T => {
     }
 };
 
+const hydrateChallengesFromBrowserStorage = () => {
+  if (typeof window === 'undefined' || hasHydratedClientData) return;
+  hasHydratedClientData = true;
+
+  try {
+    const raw = window.localStorage.getItem(CHALLENGES_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as Challenge[];
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      challenges = parsed;
+    }
+  } catch (error) {
+    console.warn('Could not hydrate challenges from localStorage:', error);
+  }
+};
+
+const persistChallengesToBrowserStorage = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(CHALLENGES_STORAGE_KEY, JSON.stringify(challenges));
+    window.dispatchEvent(new CustomEvent('bruchchallenge:data-updated'));
+  } catch (error) {
+    console.warn('Could not persist challenges to localStorage:', error);
+  }
+};
+
+const initializeRemoteSyncIfConfigured = () => {
+  if (typeof window === 'undefined' || hasInitializedRemoteSync) return;
+  hasInitializedRemoteSync = true;
+
+  const firebaseConfig = {
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  };
+
+  if (!firebaseConfig.apiKey || !firebaseConfig.projectId || !firebaseConfig.appId) {
+    return;
+  }
+
+  void (async () => {
+    try {
+      const [{ initializeApp, getApps }, { getFirestore, doc, getDoc, onSnapshot, setDoc }] = await Promise.all([
+        import('firebase/app'),
+        import('firebase/firestore'),
+      ]);
+
+      const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+      const challengeDocRef = doc(db, 'bruchchallenge', 'shared-state');
+
+      pushRemoteSnapshot = async (payload: Challenge[]) => {
+        await setDoc(challengeDocRef, { challenges: payload, updatedAt: Date.now() }, { merge: true });
+      };
+
+      const initialSnapshot = await getDoc(challengeDocRef);
+      if (initialSnapshot.exists()) {
+        const remoteData = initialSnapshot.data()?.challenges as Challenge[] | undefined;
+        if (Array.isArray(remoteData) && remoteData.length > 0) {
+          challenges = remoteData;
+          persistChallengesToBrowserStorage();
+        }
+      } else {
+        await pushRemoteSnapshot(deepCopy(challenges));
+      }
+
+      onSnapshot(challengeDocRef, (snapshot) => {
+        const remoteData = snapshot.data()?.challenges as Challenge[] | undefined;
+        if (!Array.isArray(remoteData) || remoteData.length === 0) return;
+        challenges = remoteData;
+        persistChallengesToBrowserStorage();
+      });
+    } catch (error) {
+      console.warn('Firebase realtime sync unavailable, using local storage only.', error);
+    }
+  })();
+};
+
+const persistAndBroadcastChallenges = () => {
+  persistChallengesToBrowserStorage();
+  initializeRemoteSyncIfConfigured();
+  if (!pushRemoteSnapshot) return;
+
+  if (remoteSyncTimer) clearTimeout(remoteSyncTimer);
+  remoteSyncTimer = setTimeout(() => {
+    if (!pushRemoteSnapshot) return;
+    void pushRemoteSnapshot(deepCopy(challenges));
+  }, 250);
+};
+
+const ensureClientDataReady = () => {
+  hydrateChallengesFromBrowserStorage();
+  initializeRemoteSyncIfConfigured();
+};
+
 export const setDataCreateNewChallenge = (newChallengeData: Omit<Challenge, 'id' | 'status' | 'games' | 'date'> & { games: Omit<Game, 'id'>[] }): Challenge => {
+  ensureClientDataReady();
   const newChallengeId = `challenge-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
   const processedGames: Game[] = newChallengeData.games.map((game, index) => ({
     ...defaultGameFlags, 
@@ -292,12 +395,14 @@ export const setDataCreateNewChallenge = (newChallengeData: Omit<Challenge, 'id'
   };
 
   challenges.push(challengeToAdd);
+  persistAndBroadcastChallenges();
   // ensureUpcomingChallenge(); // No longer automatically creating default challenges
   return deepCopy(challengeToAdd);
 };
 
 
 export const setDataChallengeStatus = (id: string, newStatus: 'upcoming' | 'live' | 'past'): Challenge | null => {
+  ensureClientDataReady();
   const challengeIndex = challenges.findIndex(c => c.id === id);
   if (challengeIndex !== -1) {
     const chal = challenges[challengeIndex];
@@ -362,6 +467,7 @@ export const setDataChallengeStatus = (id: string, newStatus: 'upcoming' | 'live
       });
       chal.activeGameId = null;
     }
+    persistAndBroadcastChallenges();
     // ensureUpcomingChallenge(); // No longer automatically managing 'next-challenge' rescheduling here
     return deepCopy(chal);
   }
@@ -369,6 +475,7 @@ export const setDataChallengeStatus = (id: string, newStatus: 'upcoming' | 'live
 };
 
 export const setDataToggleOverallChallengeTimer = (id: string): Challenge | null => {
+  ensureClientDataReady();
   const challengeIndex = challenges.findIndex(c => c.id === id);
   if (challengeIndex !== -1 && challenges[challengeIndex].status === 'live') {
     const chal = challenges[challengeIndex];
@@ -383,12 +490,14 @@ export const setDataToggleOverallChallengeTimer = (id: string): Challenge | null
       chal.challengeStartedAt = Date.now();
       chal.isChallengeTimerActive = true;
     }
+    persistAndBroadcastChallenges();
     return deepCopy(chal);
   }
   return null;
 };
 
 export const setDataActiveGameAndToggleTimer = (challengeId: string, gameId: string): Challenge | null => {
+  ensureClientDataReady();
   const challengeIndex = challenges.findIndex(c => c.id === challengeId);
   if (challengeIndex === -1 || challenges[challengeIndex].status !== 'live') return null;
 
@@ -411,6 +520,7 @@ export const setDataActiveGameAndToggleTimer = (challengeId: string, gameId: str
         }
     });
     chal.activeGameId = null; 
+    persistAndBroadcastChallenges();
     return deepCopy(chal); 
   }
 
@@ -448,10 +558,12 @@ export const setDataActiveGameAndToggleTimer = (challengeId: string, gameId: str
       chal.activeGameId = gameId;
   }
   
+  persistAndBroadcastChallenges();
   return deepCopy(chal);
 };
 
 export const setDataUpdateGameProgress = (challengeId: string, gameId: string, progressChange: number, note?: string): Challenge | null => {
+  ensureClientDataReady();
   const challengeIndex = challenges.findIndex(c => c.id === challengeId);
   if (challengeIndex === -1 || challenges[challengeIndex].status !== 'live') return null;
 
@@ -495,10 +607,12 @@ export const setDataUpdateGameProgress = (challengeId: string, gameId: string, p
   } else if (game.status !== 'completed' && (game.isTimerActive || (game.accumulatedDuration || 0) > 0 || (game.tryCount || 0) > 0 || (game.currentProgress || 0) > 0)) {
     game.status = 'active'; // Ensure it's active if there's any form of interaction
   }
+  persistAndBroadcastChallenges();
   return deepCopy(chal);
 };
 
 export const setDataLogGameTry = (challengeId: string, gameId: string, note?: string): Challenge | null => {
+  ensureClientDataReady();
   const challengeIndex = challenges.findIndex(c => c.id === challengeId);
   if (challengeIndex === -1 || challenges[challengeIndex].status !== 'live') return null;
 
@@ -514,10 +628,12 @@ export const setDataLogGameTry = (challengeId: string, gameId: string, note?: st
   if (game.status === 'pending' && (chal.isChallengeTimerActive || game.isTimerActive || (game.tryCount || 0) > 0 )) {
     game.status = 'active';
   }
+  persistAndBroadcastChallenges();
   return deepCopy(chal);
 };
 
 export const setDataAddOverallNote = (challengeId: string, note: string): Challenge | null => {
+    ensureClientDataReady();
     const challengeIndex = challenges.findIndex(c => c.id === challengeId);
     if (challengeIndex !== -1) {
         const chal = challenges[challengeIndex];
@@ -525,17 +641,20 @@ export const setDataAddOverallNote = (challengeId: string, note: string): Challe
             chal.overallNotes = [];
         }
         chal.overallNotes.push(note);
+        persistAndBroadcastChallenges();
         return deepCopy(chal);
     }
     return null;
 };
 
 export const setDataEditOverallNote = (challengeId: string, noteIndex: number, newNoteText: string): Challenge | null => {
+    ensureClientDataReady();
     const challengeIndex = challenges.findIndex(c => c.id === challengeId);
     if (challengeIndex !== -1) {
         const chal = challenges[challengeIndex];
         if (chal.overallNotes && chal.overallNotes[noteIndex] !== undefined) {
             chal.overallNotes[noteIndex] = newNoteText;
+            persistAndBroadcastChallenges();
             return deepCopy(chal);
         }
     }
@@ -543,11 +662,13 @@ export const setDataEditOverallNote = (challengeId: string, noteIndex: number, n
 };
 
 export const setDataDeleteOverallNote = (challengeId: string, noteIndex: number): Challenge | null => {
+    ensureClientDataReady();
     const challengeIndex = challenges.findIndex(c => c.id === challengeId);
     if (challengeIndex !== -1) {
         const chal = challenges[challengeIndex];
         if (chal.overallNotes && chal.overallNotes[noteIndex] !== undefined) {
             chal.overallNotes.splice(noteIndex, 1);
+            persistAndBroadcastChallenges();
             return deepCopy(chal);
         }
     }
@@ -557,6 +678,7 @@ export const setDataDeleteOverallNote = (challengeId: string, noteIndex: number)
 
 // GETTER functions
 export const getDataChallenges = (): Challenge[] => {
+  ensureClientDataReady();
   return deepCopy(challenges).sort((a, b) => {
     const dateA = a.scheduledDateTime ? new Date(a.scheduledDateTime) : new Date(a.date);
     const dateB = b.scheduledDateTime ? new Date(b.scheduledDateTime) : new Date(b.date);
@@ -565,11 +687,13 @@ export const getDataChallenges = (): Challenge[] => {
 };
 
 export const getDataChallengeById = (id: string): Challenge | null => {
+  ensureClientDataReady();
   const challenge = challenges.find(challenge => challenge.id === id);
   return challenge ? deepCopy(challenge) : null;
 };
 
 export const getDataUpcomingChallenge = (): Challenge | null => {
+  ensureClientDataReady();
   const now = new Date();
   const upcomingAndFuture = challenges
       .filter(c => c.status === 'upcoming' && c.scheduledDateTime && new Date(c.scheduledDateTime) > now)
@@ -578,12 +702,14 @@ export const getDataUpcomingChallenge = (): Challenge | null => {
 };
 
 export const getDataLiveChallengeDetails = (): Challenge | null => {
+  ensureClientDataReady();
   const liveChallenge = challenges.find(c => c.status === 'live');
   return liveChallenge ? deepCopy(liveChallenge) : null;
 }
 
 // Other SETTER functions
 export const setDataResetChallengeToUpcoming = (id: string, futureDate: Date): Challenge | null => {
+    ensureClientDataReady();
     const challengeIndex = challenges.findIndex(c => c.id === id);
     if (challengeIndex !== -1) {
         const chalRef = challenges[challengeIndex]; 
@@ -612,15 +738,20 @@ export const setDataResetChallengeToUpcoming = (id: string, futureDate: Date): C
         });
         
         // ensureUpcomingChallenge(); // No longer automatically creating default challenges after admin action
+        persistAndBroadcastChallenges();
         return deepCopy(chalRef);
     }
     return null;
 }
 
 export const setDataDeleteChallengeById = (id: string): boolean => {
+  ensureClientDataReady();
   const initialLength = challenges.length;
   challenges = challenges.filter(c => c.id !== id);
   const deleted = challenges.length < initialLength;
+  if (deleted) {
+    persistAndBroadcastChallenges();
+  }
   // ensureUpcomingChallenge(); // No longer automatically creating default challenges
   return deleted;
 };
