@@ -21,7 +21,6 @@ import {
   setDataCreateNewChallenge
 } from '@/lib/data';
 import type { Challenge, Game } from '@/types';
-import { revalidatePath } from 'next/cache';
 
 // Type for the form data coming from CreateChallengePage
 interface ChallengeFormValues {
@@ -40,20 +39,14 @@ interface ChallengeFormValues {
 
 
 const revalidateAllRelevantPaths = (challengeId?: string) => {
-    // In a static export context, revalidatePath is a no-op.
-    // Client-side state management or page refresh would be needed for UI updates.
-    console.log("revalidatePath called (no-op in static export): /", `/challenges/live`, challengeId ? `/challenges/${challengeId}` : '', '/admin/create-challenge');
-    // revalidatePath('/');
-    // revalidatePath('/challenges/live');
-    // if (challengeId) {
-    //     revalidatePath(`/challenges/${challengeId}`);
-    // }
-    // revalidatePath('/admin/create-challenge'); 
+    // Static export: client state + polling/realtime sync handles updates.
+    console.log("client revalidate marker:", `/`, `/challenges/live`, challengeId ? `/challenges/${challengeId}` : '', '/admin/create-challenge');
 }
 
 export async function createNewChallengeAction(data: ChallengeFormValues): Promise<Challenge | null> {
   const transformedData = {
     ...data,
+    scheduledDateTime: data.scheduledDateTime.toISOString(),
     image: data.image || undefined,
     games: data.games.map(g => ({
         ...g,

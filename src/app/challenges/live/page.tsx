@@ -89,6 +89,25 @@ export default function LiveChallengePage() {
   }, [fetchAndSetChallenge]);
 
   useEffect(() => {
+    const intervalId = setInterval(() => {
+      fetchAndSetChallenge(false);
+    }, 2000);
+
+    const handleDataUpdate = () => {
+      fetchAndSetChallenge(false);
+    };
+
+    window.addEventListener('storage', handleDataUpdate);
+    window.addEventListener('bruchchallenge:data-updated', handleDataUpdate as EventListener);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('storage', handleDataUpdate);
+      window.removeEventListener('bruchchallenge:data-updated', handleDataUpdate as EventListener);
+    };
+  }, [fetchAndSetChallenge]);
+
+  useEffect(() => {
     if (!liveChallenge || (liveChallenge.status !== 'live' && liveChallenge.status !== 'upcoming')) {
       if(liveChallenge && liveChallenge.challengeAccumulatedDuration !== undefined){ 
         const newDisplayTimers: Record<string, string> = {};
