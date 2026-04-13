@@ -2,6 +2,8 @@
 // These functions run client-side and persist via local storage / Firebase sync.
 
 import {
+  challenges,
+  defaultGameFlags,
   setDataChallengeStatus,
   setDataToggleOverallChallengeTimer,
   setDataActiveGameAndToggleTimer,
@@ -18,8 +20,8 @@ import {
   setDataDeleteOverallNote,
   setDataCreateNewChallenge,
 } from '@/lib/data';
-import type { Challenge } from '@/types';
-import { getFirebaseAuthClient, isAdminEmail, isFirebaseConfigured } from '@/lib/firebase-client';
+import type { Challenge, Game } from '@/types';
+import { getFirebaseAuthClient, getFirebaseDb, isAdminEmail, isFirebaseConfigured } from '@/lib/firebase-client';
 
 interface ChallengeFormValues {
   title: string;
@@ -35,8 +37,70 @@ interface ChallengeFormValues {
   }>;
 }
 
+interface ChallengeEditorGameValues {
+  id?: string;
+  name: string;
+  iconName: string;
+  objective: string;
+  targetProgress?: number | null;
+  enableTryCounter?: boolean;
+  enableManualLog?: boolean;
+  result?: string | null;
+  status?: Game['status'];
+}
+
+interface ChallengeEditorValues {
+  title: string;
+  scheduledDateTime: string;
+  image?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  totalDuration?: string | null;
+  overallNotes?: string[];
+  games: ChallengeEditorGameValues[];
+}
+
+const STORAGE_KEY = 'bruchchallenge:challenges:v1';
+
+const cloneData = <T,>(value: T): T => {
+  try {
+    if (typeof structuredClone === 'function') {
+      return structuredClone(value);
+    }
+  } catch {
+    // Ignore and fall back to JSON clone.
+  }
+
+  return JSON.parse(JSON.stringify(value)) as T;
+};
+
+const normalizeOptionalText = (value: string | null | undefined): string | undefined => {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const persistChallengesSnapshot = async () => {
+  const snapshot = cloneData(challenges);
+
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+    window.dispatchEvent(new CustomEvent('bruchchallenge:data-updated'));
+  }
+
+  const db = getFirebaseDb();
+  if (db) {
+    const { doc, setDoc } = await import('firebase/firestore');
+    const challengeDocRef = doc(db, 'bruchchallenge', 'shared-state');
+    await setDoc(challengeDocRef, { challenges: snapshot, updatedAt: Date.now() }, { merge: true });
+  }
+};
+
 const revalidateAllRelevantPaths = (challengeId?: string) => {
-  console.log('client revalidate marker:', `/`, `/challenges/live`, challengeId ? `/challenges/${challengeId}` : '', '/admin/create-challenge');
+  console.log('client revalidate marker:', `/`, `/challenges/live`, challengeId ? `/challenges/view?id=${challengeId}` : '', '/admin/create-challenge', challengeId ? `/admin/edit-challenge?id=${challengeId}` : '');
 };
 
 const requireAdminSession = () => {
@@ -71,6 +135,72 @@ export async function createNewChallengeAction(data: ChallengeFormValues): Promi
     return newChallenge;
   }
   return null;
+}
+
+export async function updateChallengeAction(challengeId: string, data: ChallengeEditorValues): Promise<Challenge | null> {
+  requireAdminSession();
+  getDataChallenges();
+
+  const challengeIndex = challenges.findIndex((challenge) => challenge.id === challengeId);
+  if (challengeIndex === -1) {
+    return null;
+  }
+
+  const existingChallenge = challenges[challengeIndex];
+  const existingGamesById = new Map(existingChallenge.games.map((game) => [game.id, game]));
+  const nextScheduledDateTime = new Date(data.scheduledDateTime).toISOString();
+
+  const nextGames: Game[] = data.games.map((game, index) => {
+    const existingGame = (game.id && existingGamesById.get(game.id)) ?? existingChallenge.games[index];
+
+    const baseGame: Game = existingGame
+      ? { ...existingGame }
+      : {
+          ...(defaultGameFlags as Partial<Game>),
+          id: `${existingChallenge.id}-g${index + 1}-${Math.random().toString(36).slice(2, 7)}`,
+          name: '',
+          iconName: 'default',
+          objective: '',
+          status: 'pending',
+          currentProgress: 0,
+          accumulatedDuration: 0,
+          isTimerActive: false,
+          timerStartedAt: undefined,
+          attempts: [],
+          tryCount: 0,
+          result: undefined,
+        };
+
+    return {
+      ...baseGame,
+      name: game.name.trim(),
+      iconName: game.iconName.trim().toLowerCase(),
+      objective: game.objective.trim(),
+      targetProgress: game.targetProgress ?? undefined,
+      enableTryCounter: Boolean(game.enableTryCounter),
+      enableManualLog: Boolean(game.enableManualLog),
+      result: normalizeOptionalText(game.result),
+      status: game.status ?? baseGame.status ?? 'pending',
+    };
+  });
+
+  const nextChallenge: Challenge = {
+    ...existingChallenge,
+    title: data.title.trim(),
+    scheduledDateTime: nextScheduledDateTime,
+    date: nextScheduledDateTime.split('T')[0],
+    image: normalizeOptionalText(data.image),
+    startTime: normalizeOptionalText(data.startTime),
+    endTime: normalizeOptionalText(data.endTime),
+    totalDuration: normalizeOptionalText(data.totalDuration),
+    overallNotes: (data.overallNotes ?? []).map((note) => note.trim()).filter(Boolean),
+    games: nextGames,
+  };
+
+  challenges[challengeIndex] = nextChallenge;
+  await persistChallengesSnapshot();
+  revalidateAllRelevantPaths(challengeId);
+  return cloneData(nextChallenge);
 }
 
 export async function startChallengeAction(challengeId: string): Promise<Challenge | null> {

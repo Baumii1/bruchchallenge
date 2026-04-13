@@ -36,17 +36,17 @@ export function ChallengeCard({ challenge, isUpcomingHero = false }: ChallengeCa
   return (
     <Card className={cardClasses}>
       {challenge.image && (
-         <div className="relative w-full h-48 sm:h-52 overflow-hidden"> {/* Fixed height */}
-            <Image 
-                src={challenge.image} 
-                alt={challenge.title} 
+         <div className="relative w-full h-48 sm:h-52 overflow-hidden">
+            <Image
+                src={challenge.image}
+                alt={challenge.title}
                 fill
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                 className="object-cover group-hover:scale-105 transition-transform duration-500 ease-in-out"
                 data-ai-hint={challenge.dataAihint || "gaming challenge"}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent opacity-80 group-hover:opacity-100 transition-opacity"></div>
-            <Badge 
+            <Badge
                 variant={currentStatus.variant}
                 className="absolute top-3 right-3 text-xs px-2.5 py-1 shadow-md flex items-center"
             >
@@ -59,8 +59,8 @@ export function ChallengeCard({ challenge, isUpcomingHero = false }: ChallengeCa
         <CardTitle className={cn("text-lg md:text-xl font-semibold leading-tight group-hover:text-primary transition-colors", isUpcomingHero && "text-2xl text-accent")}>
           {challenge.title}
         </CardTitle>
-        {!challenge.image && ( // Show status badge here if no image
-            <Badge 
+        {!challenge.image && (
+            <Badge
                 variant={currentStatus.variant}
                 className="text-xs px-2 py-0.5 mt-1 w-fit flex items-center"
             >
@@ -79,7 +79,7 @@ export function ChallengeCard({ challenge, isUpcomingHero = false }: ChallengeCa
           <span>{challenge.games.length} Game{challenge.games.length === 1 ? '' : 's'}</span>
           {challenge.totalDuration && <span className="ml-auto text-xs font-mono">~{challenge.totalDuration}</span>}
         </div>
-        
+
         <div className="flex flex-wrap gap-1.5">
           {challenge.games.slice(0, isUpcomingHero ? 4 : 3).map(game => (
             <Badge key={game.id} variant="outline" className="flex items-center gap-1 text-xs py-0.5 px-1.5 font-normal border-border hover:border-primary/50 hover:bg-primary/10 transition-colors">
@@ -92,7 +92,7 @@ export function ChallengeCard({ challenge, isUpcomingHero = false }: ChallengeCa
       </CardContent>
       <CardFooter className="px-4 md:px-5 pb-4 pt-2">
         <Button asChild className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm hover:shadow-md transition-all">
-          <Link href={`/challenges/${challenge.id}`}>
+          <Link href={`/challenges/view?id=${challenge.id}`}>
             <Info className="mr-2 h-4 w-4" /> View Details
           </Link>
         </Button>
