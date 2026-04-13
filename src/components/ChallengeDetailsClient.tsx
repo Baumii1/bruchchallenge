@@ -2,18 +2,17 @@
 "use client";
 
 import { useState, useEffect, useTransition } from 'react';
-import { notFound, useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { GameStatusDisplay } from '@/components/GameStatusDisplay';
 import { GameIconFactory } from '@/components/icons/GameIconFactory';
-import { CalendarDays, Clock, Hourglass, ListChecks, AlertTriangle, Users, Zap, Trash2, Loader2, NotepadText } from 'lucide-react';
+import { CalendarDays, Clock, Hourglass, ListChecks, AlertTriangle, Users, Zap, Trash2, Loader2, NotepadText, Edit3, ArchiveRestore } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { deleteChallengeAction, fetchChallengeDetailsAction } from '@/app/actions';
+import { deleteChallengeAction, fetchChallengeDetailsAction, restorePastChallengeAction } from '@/app/actions';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,7 +29,7 @@ import type { Challenge } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 
 interface ChallengeDetailsClientProps {
-  initialChallenge: Challenge; // Server component will ensure this is not null via notFound()
+  initialChallenge: Challenge;
 }
 
 const formatTime = (totalSeconds: number): string => {
@@ -53,14 +52,11 @@ const InfoItem = ({ icon: Icon, label, value }: { icon: React.ElementType, label
 export default function ChallengeDetailsClient({ initialChallenge }: ChallengeDetailsClientProps) {
   const { isAdmin } = useAuth();
   const [challenge, setChallenge] = useState<Challenge>(initialChallenge);
-  // isLoading is primarily for client-side initiated actions like delete, not initial load from server.
   const [isDeleting, startDeleteTransition] = useTransition();
-  const router = useRouter();
+  const [isRestoring, startRestoreTransition] = useTransition();
   const { toast } = useToast();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Effect to update local state if initialChallenge prop changes
-  // This might happen if the parent Server Component re-renders with new data for the same ID.
   useEffect(() => {
     setChallenge(initialChallenge);
   }, [initialChallenge]);
@@ -94,11 +90,12 @@ export default function ChallengeDetailsClient({ initialChallenge }: ChallengeDe
       setShowDeleteConfirm(false);
       return;
     }
+
     startDeleteTransition(async () => {
       const result = await deleteChallengeAction(challenge.id);
       if (result.success) {
         toast({ title: "Challenge Deleted", description: `"${challenge.title}" has been successfully deleted.`, variant: "default" });
-        router.push('/');
+        window.location.href = '/';
       } else {
         toast({ title: "Deletion Failed", description: "Could not delete the challenge. Please try again.", variant: "destructive" });
       }
@@ -106,7 +103,26 @@ export default function ChallengeDetailsClient({ initialChallenge }: ChallengeDe
     });
   };
 
-  // Server ensures challenge exists. If for some reason client state becomes invalid, provide a fallback.
+  const handleRestoreChallenge = async () => {
+    if (!challenge || !isAdmin || challenge.status !== 'past') {
+      return;
+    }
+
+    startRestoreTransition(async () => {
+      try {
+        const restoredChallenge = await restorePastChallengeAction(challenge.id);
+        if (restoredChallenge) {
+          toast({ title: 'Challenge restored', description: `${restoredChallenge.title} ist wieder upcoming.` });
+          window.location.href = `/challenges/view?id=${restoredChallenge.id}`;
+        } else {
+          toast({ title: 'Restore failed', description: 'Die Challenge konnte nicht wiederhergestellt werden.', variant: 'destructive' });
+        }
+      } catch (error) {
+        toast({ title: 'Restore failed', description: (error as Error).message, variant: 'destructive' });
+      }
+    });
+  };
+
   if (!challenge) {
     return (
         <div className="text-center py-10">
@@ -145,13 +161,7 @@ export default function ChallengeDetailsClient({ initialChallenge }: ChallengeDe
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
             <div className="absolute bottom-0 left-0 p-6 md:p-8 w-full">
-                <Badge
-                    variant={currentStatusInfo.variant}
-                    className={cn(
-                        "text-sm md:text-base px-3 py-1.5 font-semibold shadow-lg flex items-center w-fit",
-                        currentStatusInfo.bgColor
-                    )}
-                >
+                <Badge variant={currentStatusInfo.variant} className={cn("text-sm md:text-base px-3 py-1.5 font-semibold shadow-lg flex items-center w-fit", currentStatusInfo.bgColor)}>
                     {currentStatusInfo.icon}
                     {currentStatusInfo.text}
                 </Badge>
@@ -166,10 +176,7 @@ export default function ChallengeDetailsClient({ initialChallenge }: ChallengeDe
              <CardHeader className="border-b bg-card p-6">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                     <CardTitle className="text-3xl md:text-4xl font-extrabold">{challenge.title}</CardTitle>
-                    <Badge
-                         variant={currentStatusInfo.variant}
-                         className={cn("text-sm px-3 py-1 font-semibold flex items-center", currentStatusInfo.bgColor)}
-                    >
+                    <Badge variant={currentStatusInfo.variant} className={cn("text-sm px-3 py-1 font-semibold flex items-center", currentStatusInfo.bgColor)}>
                         {currentStatusInfo.icon}
                         {currentStatusInfo.text}
                     </Badge>
@@ -183,44 +190,60 @@ export default function ChallengeDetailsClient({ initialChallenge }: ChallengeDe
             {challenge.startTime && <InfoItem icon={Clock} label="Start Time" value={challenge.startTime} />}
             {challenge.endTime && <InfoItem icon={Clock} label="End Time" value={challenge.endTime} />}
             {challenge.totalDuration && <InfoItem icon={Hourglass} label="Est. Duration" value={challenge.totalDuration} />}
-             {challenge.challengeAccumulatedDuration !== undefined && challenge.status !== 'upcoming' && <InfoItem icon={Hourglass} label="Actual Duration" value={formatTime(challenge.challengeAccumulatedDuration)} />}
+            {challenge.challengeAccumulatedDuration !== undefined && challenge.status !== 'upcoming' && <InfoItem icon={Hourglass} label="Actual Duration" value={formatTime(challenge.challengeAccumulatedDuration)} />}
           </div>
 
-          {challenge.status === 'live' && (
-            <Button asChild size="lg" className="w-full md:w-auto bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow-lg animate-pulse hover:animate-none">
-              <Link href="/challenges/live">
-                <GameIconFactory iconName="target" className="mr-2 h-5 w-5" />
-                View Live Dashboard
-              </Link>
-            </Button>
-          )}
+          <div className="flex flex-wrap gap-3">
+            {challenge.status === 'live' && (
+              <Button asChild size="lg" className="bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow-lg animate-pulse hover:animate-none">
+                <Link href="/challenges/live">
+                  <GameIconFactory iconName="target" className="mr-2 h-5 w-5" />
+                  View Live Dashboard
+                </Link>
+              </Button>
+            )}
+            {isAdmin && (
+              <Button asChild variant="outline" size="lg">
+                <Link href={`/admin/edit-challenge?id=${challenge.id}`}>
+                  <Edit3 className="mr-2 h-4 w-4" />
+                  Edit Challenge
+                </Link>
+              </Button>
+            )}
+            {isAdmin && challenge.status === 'past' && (
+              <Button type="button" variant="outline" size="lg" onClick={handleRestoreChallenge} disabled={isRestoring}>
+                {isRestoring ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArchiveRestore className="mr-2 h-4 w-4" />}
+                Restore from Archive
+              </Button>
+            )}
+          </div>
         </CardContent>
-         {isAdmin && challenge.status === 'past' && (
-            <CardFooter className="p-4 border-t bg-muted/30">
-                <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-                    <AlertDialogTrigger asChild>
-                        <Button variant="destructive" className="w-full sm:w-auto" onClick={() => setShowDeleteConfirm(true)} disabled={isDeleting}>
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            {isDeleting ? "Deleting..." : "Admin: Delete This Past Challenge"}
-                        </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This action will permanently delete the challenge "{challenge.title}". This cannot be undone.
-                        </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                        <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDeleteChallenge} disabled={isDeleting} className="bg-destructive hover:bg-destructive/80">
-                            {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                            Yes, delete it
-                        </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            </CardFooter>
+        {isAdmin && challenge.status === 'past' && (
+          <CardFooter className="p-4 border-t bg-muted/30">
+            <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="w-full sm:w-auto" onClick={() => setShowDeleteConfirm(true)} disabled={isDeleting}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {isDeleting ? "Deleting..." : "Admin: Delete This Past Challenge"}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action will permanently delete the challenge "{challenge.title}". This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteChallenge} disabled={isDeleting} className="bg-destructive hover:bg-destructive/80">
+                    {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Yes, delete it
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </CardFooter>
         )}
       </Card>
 
@@ -230,19 +253,17 @@ export default function ChallengeDetailsClient({ initialChallenge }: ChallengeDe
           Games & Objectives
         </h2>
         {challenge.games.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {challenge.games.map((game) => (
-                <GameStatusDisplay key={game.id} game={game} />
+              <GameStatusDisplay key={game.id} game={game} />
             ))}
-            </div>
+          </div>
         ) : (
-            <p className="text-muted-foreground">No games were part of this challenge.</p>
+          <p className="text-muted-foreground">No games were part of this challenge.</p>
         )}
       </section>
 
-      {(challenge.playerIssues && challenge.playerIssues.length > 0) ||
-       (challenge.detailedGameAttempts && challenge.detailedGameAttempts.length > 0) || // This field is legacy
-       (challenge.overallNotes && challenge.overallNotes.length > 0) ? (
+      {(challenge.playerIssues && challenge.playerIssues.length > 0) || (challenge.detailedGameAttempts && challenge.detailedGameAttempts.length > 0) || (challenge.overallNotes && challenge.overallNotes.length > 0) ? (
         <>
           <Separator className="my-8 md:my-10" />
           <section className="space-y-6">
