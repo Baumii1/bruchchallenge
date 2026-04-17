@@ -12,6 +12,7 @@ type PublisherStatus = 'idle' | 'publishing' | 'error';
 
 const PULSOID_REALTIME_URL = 'wss://dev.pulsoid.net/api/v1/data/real_time';
 const selectedPlayerStorageKey = 'bruchchallenge:pulse-publisher:selected-player';
+const publishingActiveStorageKey = 'bruchchallenge:pulse-publisher:active';
 
 const formatPulsoidExpiry = (expiresAt: number | null): string => {
   if (!expiresAt) {
@@ -85,6 +86,30 @@ export default function PulsoidPublisherPage() {
       window.localStorage.setItem(selectedPlayerStorageKey, selectedPlayerId);
     }
   }, [selectedPlayerId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const shouldResume = window.localStorage.getItem(publishingActiveStorageKey) === 'true';
+    if (shouldResume && isPulsoidSessionValid() && selectedPlayer) {
+      setPublisherStatus((current) => current === 'publishing' ? current : 'publishing');
+      setStatusMessage('Publishing nach Reload wieder aufgenommen...');
+    }
+  }, [selectedPlayer]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (publisherStatus === 'publishing') {
+      window.localStorage.setItem(publishingActiveStorageKey, 'true');
+    } else {
+      window.localStorage.removeItem(publishingActiveStorageKey);
+    }
+  }, [publisherStatus]);
 
   useEffect(() => {
     if (publisherStatus !== 'publishing' || !selectedPlayer) {
