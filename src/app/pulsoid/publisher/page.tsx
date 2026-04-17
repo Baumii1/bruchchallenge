@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 
 type PublisherStatus = 'idle' | 'publishing' | 'error';
 
-const PULSOID_LATEST_HEART_RATE_URL = 'https://dev.pulsoid.net/api/v1/data/heart_rate/latest';
+const PULSOID_REALTIME_URL = 'wss://dev.pulsoid.net/api/v1/data/real_time';
 const selectedPlayerStorageKey = 'bruchchallenge:pulse-publisher:selected-player';
 
 const formatPulsoidExpiry = (expiresAt: number | null): string => {
@@ -25,6 +25,35 @@ const formatPulsoidExpiry = (expiresAt: number | null): string => {
 
   const remainingMinutes = Math.round(remainingMs / 60000);
   return `${remainingMinutes} min left`;
+};
+
+const parseRealtimeMessage = (rawMessage: string): { bpm: number | null; measuredAt: number | null; message?: string } => {
+  const trimmed = rawMessage.trim();
+
+  if (!trimmed) {
+    return { bpm: null, measuredAt: null, message: 'Leere Nachricht vom Pulsoid-WebSocket erhalten.' };
+  }
+
+  if (trimmed.startsWith('{')) {
+    try {
+      const payload = JSON.parse(trimmed) as { measured_at?: number; data?: { heart_rate?: number } };
+      const bpm = typeof payload.data?.heart_rate === 'number' ? payload.data.heart_rate : null;
+      return {
+        bpm,
+        measuredAt: typeof payload.measured_at === 'number' ? payload.measured_at : null,
+        message: bpm === null ? 'Keine Herzfrequenz im WebSocket-Event gefunden.' : undefined,
+      };
+    } catch {
+      return { bpm: null, measuredAt: null, message: 'WebSocket-Nachricht konnte nicht als JSON gelesen werden.' };
+    }
+  }
+
+  const numericBpm = Number(trimmed);
+  if (Number.isFinite(numericBpm)) {
+    return { bpm: numericBpm, measuredAt: null };
+  }
+
+  return { bpm: null, measuredAt: null, message: `Unbekanntes WebSocket-Format: ${trimmed}` };
 };
 
 export default function PulsoidPublisherPage() {
@@ -63,8 +92,23 @@ export default function PulsoidPublisherPage() {
     }
 
     let isCancelled = false;
+    let reconnectAttempts = 0;
+    let reconnectTimeoutId: number | null = null;
+    let socket: WebSocket | null = null;
+    let intentionalClose = false;
 
-    const publishOnce = async () => {
+    const cleanupSocket = () => {
+      if (reconnectTimeoutId !== null) {
+        window.clearTimeout(reconnectTimeoutId);
+        reconnectTimeoutId = null;
+      }
+
+      if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+        socket.close();
+      }
+    };
+
+    const connectSocket = () => {
       const currentSession = getPulsoidSession();
       setSession(currentSession);
 
@@ -74,69 +118,73 @@ export default function PulsoidPublisherPage() {
         return;
       }
 
-      try {
-        const response = await fetch(PULSOID_LATEST_HEART_RATE_URL, {
-          headers: {
-            Authorization: `Bearer ${currentSession.accessToken}`,
-            Accept: 'application/json',
-          },
-          cache: 'no-store',
+      const url = new URL(PULSOID_REALTIME_URL);
+      url.searchParams.set('access_token', currentSession.accessToken);
+
+      setStatusMessage(reconnectAttempts > 0 ? `Verbinde Realtime-Stream erneut (Versuch ${reconnectAttempts + 1})...` : 'Verbinde Realtime-Stream...');
+      socket = new WebSocket(url.toString());
+
+      socket.onopen = () => {
+        reconnectAttempts = 0;
+        if (!isCancelled) {
+          setStatusMessage('Realtime verbunden. Warte auf Herzfrequenz...');
+        }
+      };
+
+      socket.onmessage = (event) => {
+        const payload = typeof event.data === 'string' ? event.data : '';
+        const parsed = parseRealtimeMessage(payload);
+
+        void writePulseBroadcastEntry({
+          id: selectedPlayer.id,
+          name: selectedPlayer.name,
+          bpm: parsed.bpm,
+          status: parsed.bpm !== null ? 'ok' : 'missing',
+          source: 'pulsoid',
+          updatedAt: Date.now(),
+          measuredAt: parsed.measuredAt,
+          message: parsed.message,
         });
 
-        if (response.status === 412) {
-          await writePulseBroadcastEntry({
-            id: selectedPlayer.id,
-            name: selectedPlayer.name,
-            bpm: null,
-            status: 'missing',
-            source: 'pulsoid',
-            updatedAt: Date.now(),
-            measuredAt: null,
-            message: 'Pulsoid hat aktuell keine Herzfrequenzdaten für diesen Nutzer.',
-          });
-          setLatestBpm(null);
-          setStatusMessage('Verbunden, aber noch keine Herzfrequenzdaten verfügbar.');
+        if (!isCancelled) {
+          setLatestBpm(parsed.bpm);
+          setStatusMessage(parsed.bpm !== null ? `Publishing läuft: ${parsed.bpm} BPM` : (parsed.message ?? 'Publishing läuft ohne BPM-Wert.'));
+        }
+      };
+
+      socket.onerror = () => {
+        if (!isCancelled) {
+          setStatusMessage('Pulsoid WebSocket Fehler. Reconnect wird vorbereitet...');
+        }
+      };
+
+      socket.onclose = () => {
+        if (isCancelled || intentionalClose) {
           return;
         }
 
-        if (!response.ok) {
-          throw new Error(`Pulsoid HTTP ${response.status}`);
-        }
-
-        const payload = await response.json() as { measured_at?: number; data?: { heart_rate?: number } };
-        const bpm = payload.data?.heart_rate ?? null;
-
-        await writePulseBroadcastEntry({
-          id: selectedPlayer.id,
-          name: selectedPlayer.name,
-          bpm,
-          status: bpm !== null ? 'ok' : 'missing',
-          source: 'pulsoid',
-          updatedAt: Date.now(),
-          measuredAt: payload.measured_at ?? null,
-          message: bpm !== null ? undefined : 'Keine Herzfrequenz im API-Response gefunden.',
-        });
-
-        if (!isCancelled) {
-          setLatestBpm(bpm);
-          setStatusMessage(bpm !== null ? `Publishing läuft: ${bpm} BPM` : 'Publishing läuft, aber ohne BPM-Wert.');
-        }
-      } catch (error) {
-        if (!isCancelled) {
+        const currentSessionAfterClose = getPulsoidSession();
+        if (!currentSessionAfterClose?.accessToken || !isPulsoidSessionValid()) {
           setPublisherStatus('error');
-          setStatusMessage(error instanceof Error ? error.message : 'Unknown Pulsoid publishing error.');
+          setStatusMessage('Pulsoid token fehlt oder ist abgelaufen. Bitte neu verbinden.');
+          return;
         }
-      }
+
+        reconnectAttempts += 1;
+        const delay = Math.min(10000, 1000 * Math.max(1, reconnectAttempts));
+        setStatusMessage(`Realtime-Verbindung unterbrochen. Neuer Versuch in ${Math.round(delay / 1000)}s...`);
+        reconnectTimeoutId = window.setTimeout(() => {
+          connectSocket();
+        }, delay);
+      };
     };
 
-    void publishOnce();
-    const intervalId = window.setInterval(() => {
-      void publishOnce();
-    }, 1000);
+    connectSocket();
 
     return () => {
       isCancelled = true;
-      window.clearInterval(intervalId);
+      intentionalClose = true;
+      cleanupSocket();
     };
   }, [publisherStatus, selectedPlayer]);
 
@@ -213,7 +261,7 @@ export default function PulsoidPublisherPage() {
               ))}
             </select>
             <p className="text-xs text-muted-foreground">
-              Diese Liste kommt aus NEXT_PUBLIC_PULSE_PLAYERS mit provider=\"broadcast\".
+              Diese Liste kommt aus NEXT_PUBLIC_PULSE_PLAYERS mit provider="broadcast".
             </p>
           </div>
 
