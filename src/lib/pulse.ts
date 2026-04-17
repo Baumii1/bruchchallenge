@@ -1,4 +1,6 @@
-export type PulseProvider = 'json-endpoint' | 'manual' | 'pulsoid-oauth';
+import { readPulseBroadcast } from '@/lib/pulse-broadcast';
+
+export type PulseProvider = 'json-endpoint' | 'manual' | 'broadcast';
 
 export interface PulsePlayerConfig {
   id: string;
@@ -25,10 +27,6 @@ export interface PulsoidOAuthConfig {
   clientId: string;
   redirectUri: string;
   scopes: string;
-  endpoint?: string;
-  playerId: string;
-  playerName: string;
-  valuePath?: string;
 }
 
 export interface PulsoidSession {
@@ -190,10 +188,6 @@ export const getPulsoidConfig = (): PulsoidOAuthConfig | null => {
     clientId,
     redirectUri,
     scopes: normalizeScope(process.env.NEXT_PUBLIC_PULSOID_SCOPES ?? 'data:heart_rate:read'),
-    endpoint: process.env.NEXT_PUBLIC_PULSOID_HEART_RATE_ENDPOINT?.trim() || undefined,
-    playerId: process.env.NEXT_PUBLIC_PULSOID_PLAYER_ID?.trim() || 'pulsoid-player',
-    playerName: process.env.NEXT_PUBLIC_PULSOID_PLAYER_NAME?.trim() || 'Pulsoid Player',
-    valuePath: process.env.NEXT_PUBLIC_PULSOID_VALUE_PATH?.trim() || undefined,
   };
 };
 
@@ -287,42 +281,24 @@ export const completePulsoidOAuthCallback = (hash: string): PulsoidCallbackResul
   return { ok: true, message: 'Pulsoid erfolgreich verbunden.' };
 };
 
-const getPulsoidPlayerConfig = (): PulsePlayerConfig | null => {
-  const config = getPulsoidConfig();
-  if (!config) {
-    return null;
-  }
-
-  return {
-    id: config.playerId,
-    name: config.playerName,
-    provider: 'pulsoid-oauth',
-    endpoint: config.endpoint,
-    valuePath: config.valuePath,
-  };
-};
-
 export const getPulsePlayers = (): PulsePlayerConfig[] => {
   const raw = process.env.NEXT_PUBLIC_PULSE_PLAYERS;
-  let parsedPlayers: PulsePlayerConfig[] = [];
 
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw) as PulsePlayerConfig[];
-      if (Array.isArray(parsed)) {
-        parsedPlayers = parsed.filter((entry) => entry && entry.id && entry.name && entry.provider);
-      }
-    } catch (error) {
-      console.warn('Could not parse NEXT_PUBLIC_PULSE_PLAYERS.', error);
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as PulsePlayerConfig[];
+    if (!Array.isArray(parsed)) {
+      return [];
     }
-  }
 
-  const pulsoidPlayer = getPulsoidPlayerConfig();
-  if (pulsoidPlayer && !parsedPlayers.some((entry) => entry.id === pulsoidPlayer.id)) {
-    parsedPlayers.push(pulsoidPlayer);
+    return parsed.filter((entry) => entry && entry.id && entry.name && entry.provider);
+  } catch (error) {
+    console.warn('Could not parse NEXT_PUBLIC_PULSE_PLAYERS.', error);
+    return [];
   }
-
-  return parsedPlayers;
 };
 
 export const fetchPulseReading = async (player: PulsePlayerConfig): Promise<PulseReading> => {
@@ -338,92 +314,83 @@ export const fetchPulseReading = async (player: PulsePlayerConfig): Promise<Puls
     };
   }
 
-  let resolvedPlayer = player;
+  if (player.provider === 'broadcast') {
+    const entries = await readPulseBroadcast();
+    const entry = entries[player.id];
 
-  if (player.provider === 'pulsoid-oauth') {
-    const session = getPulsoidSession();
-    if (!session?.accessToken) {
+    if (!entry) {
       return {
         id: player.id,
         name: player.name,
         bpm: null,
         status: 'missing',
-        source: 'pulsoid-oauth',
+        source: 'broadcast',
         updatedAt: null,
-        message: 'Pulsoid ist noch nicht verbunden.',
+        message: 'Noch kein Publisher für diesen Spieler aktiv.',
       };
     }
 
-    if (session.expiresAt && Date.now() >= session.expiresAt) {
-      return {
-        id: player.id,
-        name: player.name,
-        bpm: null,
-        status: 'error',
-        source: 'pulsoid-oauth',
-        updatedAt: null,
-        message: 'Pulsoid access token ist abgelaufen. Bitte neu verbinden.',
-      };
-    }
-
-    resolvedPlayer = {
-      ...player,
-      token: session.accessToken,
-      endpoint: player.endpoint ?? getPulsoidConfig()?.endpoint,
-      valuePath: player.valuePath ?? getPulsoidConfig()?.valuePath,
+    return {
+      id: player.id,
+      name: entry.name || player.name,
+      bpm: entry.bpm,
+      status: entry.status,
+      source: 'broadcast',
+      updatedAt: entry.updatedAt,
+      message: entry.message,
     };
   }
 
-  if (!resolvedPlayer.endpoint) {
+  if (!player.endpoint) {
     return {
-      id: resolvedPlayer.id,
-      name: resolvedPlayer.name,
+      id: player.id,
+      name: player.name,
       bpm: null,
       status: 'missing',
-      source: resolvedPlayer.provider,
+      source: 'json-endpoint',
       updatedAt: null,
       message: 'No endpoint configured.',
     };
   }
 
   try {
-    const response = await fetch(resolvedPlayer.endpoint, {
+    const response = await fetch(player.endpoint, {
       method: 'GET',
-      headers: buildHeaders(resolvedPlayer),
+      headers: buildHeaders(player),
       cache: 'no-store',
     });
 
     if (!response.ok) {
       return {
-        id: resolvedPlayer.id,
-        name: resolvedPlayer.name,
+        id: player.id,
+        name: player.name,
         bpm: null,
         status: 'error',
-        source: resolvedPlayer.provider,
+        source: 'json-endpoint',
         updatedAt: null,
         message: `HTTP ${response.status}`,
       };
     }
 
     const payload = await response.json();
-    const bpm = resolveBpm(payload, resolvedPlayer.valuePath);
+    const bpm = resolveBpm(payload, player.valuePath);
 
     return {
-      id: resolvedPlayer.id,
-      name: resolvedPlayer.name,
+      id: player.id,
+      name: player.name,
       bpm,
       status: bpm !== null ? 'ok' : 'missing',
-      source: resolvedPlayer.provider,
+      source: 'json-endpoint',
       updatedAt: Date.now(),
       message: bpm !== null ? undefined : 'No BPM value found in JSON payload.',
     };
   } catch (error) {
     return {
-      id: resolvedPlayer.id,
-      name: resolvedPlayer.name,
+      id: player.id,
+      name: player.name,
       bpm: null,
       status: 'error',
-      source: resolvedPlayer.provider,
+      source: 'json-endpoint',
       updatedAt: null,
       message: error instanceof Error ? error.message : 'Unknown pulse request error.',
     };
