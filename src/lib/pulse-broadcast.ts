@@ -24,6 +24,24 @@ const getPulseBroadcastDoc = () => {
   return doc(db, COLLECTION_ID, DOC_ID);
 };
 
+const sanitizeEntry = (entry: BroadcastPulseEntry) => {
+  const sanitized: Record<string, unknown> = {
+    id: entry.id,
+    name: entry.name,
+    bpm: entry.bpm,
+    status: entry.status,
+    source: entry.source,
+    updatedAt: entry.updatedAt,
+    measuredAt: entry.measuredAt,
+  };
+
+  if (entry.message !== undefined) {
+    sanitized.message = entry.message;
+  }
+
+  return sanitized;
+};
+
 export const readPulseBroadcast = async (): Promise<Record<string, BroadcastPulseEntry>> => {
   const pulseDoc = getPulseBroadcastDoc();
   if (!pulseDoc) {
@@ -50,15 +68,17 @@ export const writePulseBroadcastEntry = async (entry: BroadcastPulseEntry): Prom
     throw new Error('Firebase ist nicht konfiguriert.');
   }
 
+  const sanitizedEntry = sanitizeEntry(entry);
+
   try {
     await updateDoc(pulseDoc, {
-      [`entries.${entry.id}`]: entry,
+      [`entries.${entry.id}`]: sanitizedEntry,
       updatedAt: Date.now(),
     });
   } catch {
     await setDoc(pulseDoc, {
       entries: {
-        [entry.id]: entry,
+        [entry.id]: sanitizedEntry,
       },
       updatedAt: Date.now(),
     }, { merge: true });
