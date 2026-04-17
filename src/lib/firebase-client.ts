@@ -1,6 +1,6 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, type Firestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -52,7 +52,20 @@ export const getFirebaseDb = (): Firestore | null => {
   }
 
   const app = getFirebaseApp();
-  cachedDb = app ? getFirestore(app) : null;
+  if (!app) {
+    cachedDb = null;
+    return cachedDb;
+  }
+
+  try {
+    cachedDb = initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true,
+      useFetchStreams: false,
+    });
+  } catch {
+    cachedDb = getFirestore(app);
+  }
+
   return cachedDb;
 };
 
