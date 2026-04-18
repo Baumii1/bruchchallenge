@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuth } from '@/context/AuthContext';
 import { fetchAllPulseReadings, getPulsePlayers, type PulseReading } from '@/lib/pulse';
+import { subscribePulseBroadcast } from '@/lib/pulse-broadcast';
 
 const formatTime = (totalSeconds: number): string => {
   const hours = Math.floor(totalSeconds / 3600);
@@ -59,6 +60,8 @@ const formatPulseAge = (updatedAt: number | null): string => {
   const seconds = Math.max(0, Math.round((Date.now() - updatedAt) / 1000));
   return seconds <= 1 ? 'just now' : `${seconds}s ago`;
 };
+
+const CHALLENGE_STORAGE_KEY = 'bruchchallenge:challenges:v1';
 
 export default function LiveChallengePage() {
   const { isAdmin } = useAuth();
@@ -113,27 +116,43 @@ export default function LiveChallengePage() {
       fetchAndSetChallenge(false);
     }, 5000);
 
-    const handleDataUpdate = () => {
-      fetchAndSetChallenge(false);
+    const handleStorageUpdate = (event: StorageEvent) => {
+      if (event.key && event.key !== CHALLENGE_STORAGE_KEY) {
+        return;
+      }
+
+      void fetchAndSetChallenge(false);
     };
 
-    window.addEventListener('storage', handleDataUpdate);
-    window.addEventListener('bruchchallenge:data-updated', handleDataUpdate as EventListener);
+    const handleChallengeUpdate = () => {
+      void fetchAndSetChallenge(false);
+    };
+
+    window.addEventListener('storage', handleStorageUpdate);
+    window.addEventListener('bruchchallenge:data-updated', handleChallengeUpdate as EventListener);
 
     return () => {
       clearInterval(intervalId);
-      window.removeEventListener('storage', handleDataUpdate);
-      window.removeEventListener('bruchchallenge:data-updated', handleDataUpdate as EventListener);
+      window.removeEventListener('storage', handleStorageUpdate);
+      window.removeEventListener('bruchchallenge:data-updated', handleChallengeUpdate as EventListener);
     };
   }, [fetchAndSetChallenge]);
 
   useEffect(() => {
     void refreshPulse();
+
+    const unsubscribePulse = subscribePulseBroadcast(() => {
+      void refreshPulse();
+    });
+
     const pulseInterval = window.setInterval(() => {
       void refreshPulse();
     }, 5000);
 
-    return () => window.clearInterval(pulseInterval);
+    return () => {
+      unsubscribePulse();
+      window.clearInterval(pulseInterval);
+    };
   }, [refreshPulse]);
 
   useEffect(() => {
