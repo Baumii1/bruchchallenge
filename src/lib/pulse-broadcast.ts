@@ -81,6 +81,35 @@ const normalizeEntries = (rawEntries: unknown): Record<string, BroadcastPulseEnt
   }, {});
 };
 
+const mergePulseEntries = (
+  primaryEntries: Record<string, BroadcastPulseEntry>,
+  secondaryEntries: Record<string, BroadcastPulseEntry>
+): Record<string, BroadcastPulseEntry> => {
+  const allIds = new Set([...Object.keys(primaryEntries), ...Object.keys(secondaryEntries)]);
+  const mergedEntries: Record<string, BroadcastPulseEntry> = {};
+
+  for (const entryId of allIds) {
+    const primaryEntry = primaryEntries[entryId];
+    const secondaryEntry = secondaryEntries[entryId];
+
+    if (!primaryEntry) {
+      mergedEntries[entryId] = secondaryEntry;
+      continue;
+    }
+
+    if (!secondaryEntry) {
+      mergedEntries[entryId] = primaryEntry;
+      continue;
+    }
+
+    mergedEntries[entryId] = primaryEntry.updatedAt >= secondaryEntry.updatedAt
+      ? primaryEntry
+      : secondaryEntry;
+  }
+
+  return mergedEntries;
+};
+
 const readLocalPulseBroadcast = (): Record<string, BroadcastPulseEntry> => {
   if (typeof window === 'undefined') {
     return {};
@@ -123,22 +152,24 @@ const persistAndDispatchPulseBroadcast = (entries: Record<string, BroadcastPulse
 };
 
 export const readPulseBroadcast = async (): Promise<Record<string, BroadcastPulseEntry>> => {
+  const localEntries = readLocalPulseBroadcast();
   const pulseDoc = getPulseBroadcastDoc();
   if (!pulseDoc) {
-    return readLocalPulseBroadcast();
+    return localEntries;
   }
 
   try {
     const snapshot = await getDoc(pulseDoc);
     if (!snapshot.exists()) {
-      return readLocalPulseBroadcast();
+      return localEntries;
     }
 
-    const entries = normalizeEntries(snapshot.data()?.entries);
-    persistLocalPulseBroadcast(entries);
-    return entries;
+    const remoteEntries = normalizeEntries(snapshot.data()?.entries);
+    const mergedEntries = mergePulseEntries(localEntries, remoteEntries);
+    persistLocalPulseBroadcast(mergedEntries);
+    return mergedEntries;
   } catch {
-    return readLocalPulseBroadcast();
+    return localEntries;
   }
 };
 
@@ -215,32 +246,32 @@ export const subscribePulseBroadcast = (listener: (entries: Record<string, Broad
     listener(readLocalPulseBroadcast());
   };
 
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key && event.key !== LOCAL_STORAGE_KEY) {
+      return;
+    }
+
+    emitLocalEntries();
+  };
+
+  const handlePulseUpdate = () => {
+    emitLocalEntries();
+  };
+
+  window.addEventListener('storage', handleStorage);
+  window.addEventListener(PULSE_UPDATE_EVENT, handlePulseUpdate as EventListener);
+
   emitLocalEntries();
 
   const pulseDoc = getPulseBroadcastDoc();
   if (!pulseDoc) {
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key && event.key !== LOCAL_STORAGE_KEY) {
-        return;
-      }
-
-      emitLocalEntries();
-    };
-
-    const handlePulseUpdate = () => {
-      emitLocalEntries();
-    };
-
-    window.addEventListener('storage', handleStorage);
-    window.addEventListener(PULSE_UPDATE_EVENT, handlePulseUpdate as EventListener);
-
     return () => {
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener(PULSE_UPDATE_EVENT, handlePulseUpdate as EventListener);
     };
   }
 
-  return onSnapshot(
+  const unsubscribeSnapshot = onSnapshot(
     pulseDoc,
     (snapshot) => {
       if (!snapshot.exists()) {
@@ -248,12 +279,20 @@ export const subscribePulseBroadcast = (listener: (entries: Record<string, Broad
         return;
       }
 
-      const entries = normalizeEntries(snapshot.data()?.entries);
-      persistLocalPulseBroadcast(entries);
-      listener(entries);
+      const localEntries = readLocalPulseBroadcast();
+      const remoteEntries = normalizeEntries(snapshot.data()?.entries);
+      const mergedEntries = mergePulseEntries(localEntries, remoteEntries);
+      persistLocalPulseBroadcast(mergedEntries);
+      listener(mergedEntries);
     },
     () => {
       emitLocalEntries();
     }
   );
+
+  return () => {
+    unsubscribeSnapshot();
+    window.removeEventListener('storage', handleStorage);
+    window.removeEventListener(PULSE_UPDATE_EVENT, handlePulseUpdate as EventListener);
+  };
 };
