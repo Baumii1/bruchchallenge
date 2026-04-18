@@ -22,7 +22,7 @@ import { Progress } from '@/components/ui/progress';
 import { GameIconFactory } from '@/components/icons/GameIconFactory';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { RefreshCw, PlayCircle, PauseCircle, Settings2, RadioTower, ChevronUp, Trophy, StopCircle, ListFilter, RotateCcw, Loader2, MessageSquarePlus, NotepadText, Edit3, Trash2, Check, X, HeartPulse } from 'lucide-react';
+import { RefreshCw, PlayCircle, PauseCircle, Settings2, RadioTower, ChevronUp, Trophy, StopCircle, ListFilter, RotateCcw, Loader2, MessageSquarePlus, NotepadText, Edit3, Trash2, Check, X, HeartPulse, ChevronsUpDown } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -43,7 +43,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuth } from '@/context/AuthContext';
 import { fetchAllPulseReadings, getPulsePlayers, type PulseReading } from '@/lib/pulse';
-import { subscribePulseBroadcast } from '@/lib/pulse-broadcast';
+import { subscribePulseBroadcast, type BroadcastPulseEntry } from '@/lib/pulse-broadcast';
 
 const formatTime = (totalSeconds: number): string => {
   const hours = Math.floor(totalSeconds / 3600);
@@ -84,6 +84,33 @@ export default function LiveChallengePage() {
 
   const pulsePlayers = useMemo(() => getPulsePlayers(), []);
 
+  const mapPulseEntriesToReadings = useCallback((entries: Record<string, BroadcastPulseEntry>): PulseReading[] => {
+    return pulsePlayers.map((player) => {
+      const entry = entries[player.id];
+      if (!entry) {
+        return {
+          id: player.id,
+          name: player.name,
+          bpm: null,
+          status: 'missing',
+          source: 'broadcast',
+          updatedAt: null,
+          message: 'Noch kein Publisher für diesen Spieler aktiv.',
+        };
+      }
+
+      return {
+        id: player.id,
+        name: entry.name || player.name,
+        bpm: entry.bpm,
+        status: entry.status,
+        source: 'broadcast',
+        updatedAt: entry.updatedAt,
+        message: entry.message,
+      };
+    });
+  }, [pulsePlayers]);
+
   const fetchAndSetChallenge = useCallback(async (showLoadingSpinner = true) => {
     if (showLoadingSpinner) setIsLoading(true);
     try {
@@ -114,7 +141,7 @@ export default function LiveChallengePage() {
   useEffect(() => {
     const intervalId = setInterval(() => {
       fetchAndSetChallenge(false);
-    }, 5000);
+    }, 2000);
 
     const handleStorageUpdate = (event: StorageEvent) => {
       if (event.key && event.key !== CHALLENGE_STORAGE_KEY) {
@@ -139,21 +166,26 @@ export default function LiveChallengePage() {
   }, [fetchAndSetChallenge]);
 
   useEffect(() => {
+    if (pulsePlayers.length === 0) {
+      setPulseReadings([]);
+      return;
+    }
+
     void refreshPulse();
 
-    const unsubscribePulse = subscribePulseBroadcast(() => {
-      void refreshPulse();
+    const unsubscribePulse = subscribePulseBroadcast((entries) => {
+      setPulseReadings(mapPulseEntriesToReadings(entries));
     });
 
     const pulseInterval = window.setInterval(() => {
       void refreshPulse();
-    }, 5000);
+    }, 3000);
 
     return () => {
       unsubscribePulse();
       window.clearInterval(pulseInterval);
     };
-  }, [refreshPulse]);
+  }, [mapPulseEntriesToReadings, pulsePlayers.length, refreshPulse]);
 
   useEffect(() => {
     if (!liveChallenge || (liveChallenge.status !== 'live' && liveChallenge.status !== 'upcoming')) {
@@ -211,14 +243,13 @@ const handleServerAction = async (
         if (options.onSuccessSetNull) {
             setLiveChallenge(null);
             toast({ title: successMessage, variant: "default" });
+            await fetchAndSetChallenge(false);
         } else if (resultChallenge) {
             toast({ title: successMessage, variant: "default" });
             if (options.optimisticUpdate !== false) {
                  setLiveChallenge(resultChallenge);
             }
-            if (options.refetchOnSuccess) {
-                await fetchAndSetChallenge(false);
-            }
+            await fetchAndSetChallenge(false);
         } else {
            toast({ title: errorMessage || "Action reported no change or failed", description: "Please check the challenge state.", variant: "destructive" });
            await fetchAndSetChallenge(false);
@@ -237,7 +268,7 @@ const handleServerAction = async (
         () => startChallengeAction(liveChallenge.id),
         "Challenge Started!",
         "Failed to start challenge",
-        { refetchOnSuccess: false, optimisticUpdate: true }
+        { refetchOnSuccess: true, optimisticUpdate: true }
       );
     }
   };
@@ -349,7 +380,7 @@ const handleServerAction = async (
             () => endChallengeAction(liveChallenge.id),
             "Challenge Ended and Marked as Past.",
             "Failed to end challenge.",
-            { onSuccessSetNull: true, refetchOnSuccess: false }
+            { onSuccessSetNull: true, refetchOnSuccess: true }
         );
     }
     setShowEndConfirm(false);
@@ -571,6 +602,7 @@ const handleServerAction = async (
               : 0;
             const isGameActuallyCompleted = game.status === 'completed';
             const isGameVisuallyActive = game.isTimerActive === true && liveChallenge.activeGameId === game.id;
+            const attempts = game.attempts ?? [];
 
             return (
               <Card key={game.id} className={cn("shadow-lg rounded-xl flex flex-col transition-all duration-300 border",
@@ -610,6 +642,27 @@ const handleServerAction = async (
                     <p className="text-sm text-muted-foreground">
                       Attempts: <span className="font-semibold text-foreground">{game.tryCount || 0}</span>
                     </p>
+                  )}
+                  {(attempts.length > 0 || game.enableTryCounter) && (
+                    <details className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-medium text-foreground">
+                        <span>Attempts & Logs ({attempts.length})</span>
+                        <ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
+                      </summary>
+                      <div className="mt-3 space-y-2">
+                        {attempts.length > 0 ? (
+                          <ul className="space-y-2 text-muted-foreground">
+                            {attempts.map((attempt, index) => (
+                              <li key={`${game.id}-attempt-${index}`} className="rounded border bg-background/80 px-2 py-1 whitespace-pre-wrap break-words">
+                                {attempt}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-muted-foreground">Noch keine Attempts oder Logs vorhanden.</p>
+                        )}
+                      </div>
+                    </details>
                   )}
                 </CardContent>
                 {isAdmin && isChallengeActuallyLive && !isGameActuallyCompleted && (
