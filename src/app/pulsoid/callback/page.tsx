@@ -12,7 +12,7 @@ export default function PulsoidCallbackPage() {
     setMessage(result.message);
 
     window.setTimeout(() => {
-      window.location.replace('/pulsoid/publisher');
+      window.location.replace('/bruchchallenge/pulsoid/publisher');
     }, result.ok ? 800 : 1800);
   }, []);
 
