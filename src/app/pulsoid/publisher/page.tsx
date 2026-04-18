@@ -160,6 +160,11 @@ export default function PulsoidPublisherPage() {
         const payload = typeof event.data === 'string' ? event.data : '';
         const parsed = parseRealtimeMessage(payload);
 
+        if (!isCancelled) {
+          setLatestBpm(parsed.bpm);
+          setStatusMessage(parsed.bpm !== null ? `Publishing läuft: ${parsed.bpm} BPM` : (parsed.message ?? 'Publishing läuft ohne BPM-Wert.'));
+        }
+
         void writePulseBroadcastEntry({
           id: selectedPlayer.id,
           name: selectedPlayer.name,
@@ -169,12 +174,12 @@ export default function PulsoidPublisherPage() {
           updatedAt: Date.now(),
           measuredAt: parsed.measuredAt,
           message: parsed.message,
+        }).catch((error) => {
+          if (!isCancelled) {
+            setPublisherStatus('error');
+            setStatusMessage(error instanceof Error ? `Broadcast write failed: ${error.message}` : 'Broadcast write failed.');
+          }
         });
-
-        if (!isCancelled) {
-          setLatestBpm(parsed.bpm);
-          setStatusMessage(parsed.bpm !== null ? `Publishing läuft: ${parsed.bpm} BPM` : (parsed.message ?? 'Publishing läuft ohne BPM-Wert.'));
-        }
       };
 
       socket.onerror = () => {
