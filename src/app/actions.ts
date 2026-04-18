@@ -21,7 +21,7 @@ import {
   setDataCreateNewChallenge,
 } from '@/lib/data';
 import type { Challenge, Game } from '@/types';
-import { getFirebaseAuthClient, getFirebaseDb, isAdminEmail, isFirebaseConfigured } from '@/lib/firebase-client';
+import { ensureViewerFirebaseSession, getFirebaseAuthClient, getFirebaseDb, isAdminEmail, isFirebaseConfigured } from '@/lib/firebase-client';
 
 interface ChallengeFormValues {
   title: string;
@@ -179,6 +179,7 @@ const readRemoteChallengesSnapshot = async (): Promise<Challenge[] | null> => {
   const db = getFirebaseDb();
   if (db) {
     try {
+      await ensureViewerFirebaseSession();
       const { doc, getDoc } = await import('firebase/firestore');
       const challengeDocRef = doc(db, SHARED_STATE_COLLECTION_ID, SHARED_STATE_DOC_ID);
       const snapshot = await getDoc(challengeDocRef);
