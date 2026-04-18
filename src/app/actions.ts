@@ -61,6 +61,8 @@ interface ChallengeEditorValues {
 }
 
 const STORAGE_KEY = 'bruchchallenge:challenges:v1';
+const SHARED_STATE_COLLECTION_ID = 'bruchchallenge';
+const SHARED_STATE_DOC_ID = 'shared-state';
 
 const cloneData = <T,>(value: T): T => {
   try {
@@ -83,18 +85,70 @@ const normalizeOptionalText = (value: string | null | undefined): string | undef
   return trimmed.length > 0 ? trimmed : undefined;
 };
 
+const writeChallengesToBrowserStorage = (snapshot: Challenge[]) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+  window.dispatchEvent(new CustomEvent('bruchchallenge:data-updated'));
+};
+
+const replaceInMemoryChallenges = (snapshot: Challenge[]) => {
+  const nextSnapshot = cloneData(snapshot);
+  challenges.splice(0, challenges.length, ...nextSnapshot);
+};
+
+const readRemoteChallengesSnapshot = async (): Promise<Challenge[] | null> => {
+  const db = getFirebaseDb();
+  if (!db) {
+    return null;
+  }
+
+  const { doc, getDoc } = await import('firebase/firestore');
+  const challengeDocRef = doc(db, SHARED_STATE_COLLECTION_ID, SHARED_STATE_DOC_ID);
+  const snapshot = await getDoc(challengeDocRef);
+
+  if (!snapshot.exists()) {
+    return null;
+  }
+
+  const remoteChallenges = snapshot.data()?.challenges as Challenge[] | undefined;
+  if (!Array.isArray(remoteChallenges) || remoteChallenges.length === 0) {
+    return null;
+  }
+
+  return cloneData(remoteChallenges);
+};
+
+const hydrateChallengesSnapshotForFreshSession = async () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const hasLocalSnapshot = Boolean(window.localStorage.getItem(STORAGE_KEY));
+  if (hasLocalSnapshot) {
+    return;
+  }
+
+  const remoteSnapshot = await readRemoteChallengesSnapshot();
+  if (!remoteSnapshot) {
+    return;
+  }
+
+  replaceInMemoryChallenges(remoteSnapshot);
+  writeChallengesToBrowserStorage(remoteSnapshot);
+};
+
 const persistChallengesSnapshot = async () => {
   const snapshot = cloneData(challenges);
 
-  if (typeof window !== 'undefined') {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
-    window.dispatchEvent(new CustomEvent('bruchchallenge:data-updated'));
-  }
+  writeChallengesToBrowserStorage(snapshot);
 
   const db = getFirebaseDb();
   if (db) {
     const { doc, setDoc } = await import('firebase/firestore');
-    const challengeDocRef = doc(db, 'bruchchallenge', 'shared-state');
+    const challengeDocRef = doc(db, SHARED_STATE_COLLECTION_ID, SHARED_STATE_DOC_ID);
     await setDoc(challengeDocRef, { challenges: snapshot, updatedAt: Date.now() }, { merge: true });
   }
 };
@@ -131,6 +185,7 @@ export async function createNewChallengeAction(data: ChallengeFormValues): Promi
 
   const newChallenge = setDataCreateNewChallenge(transformedData);
   if (newChallenge) {
+    await persistChallengesSnapshot();
     revalidateAllRelevantPaths(newChallenge.id);
     return newChallenge;
   }
@@ -207,6 +262,7 @@ export async function startChallengeAction(challengeId: string): Promise<Challen
   requireAdminSession();
   const updatedChallenge = setDataChallengeStatus(challengeId, 'live');
   if (updatedChallenge) {
+    await persistChallengesSnapshot();
     revalidateAllRelevantPaths(challengeId);
     return updatedChallenge;
   }
@@ -217,6 +273,7 @@ export async function toggleChallengeTimerAction(challengeId: string): Promise<C
   requireAdminSession();
   const updatedChallenge = setDataToggleOverallChallengeTimer(challengeId);
   if (updatedChallenge) {
+    await persistChallengesSnapshot();
     revalidateAllRelevantPaths(challengeId);
     return updatedChallenge;
   }
@@ -227,6 +284,7 @@ export async function toggleGameTimerAction(challengeId: string, gameId: string)
   requireAdminSession();
   const updatedChallenge = setDataActiveGameAndToggleTimer(challengeId, gameId);
   if (updatedChallenge) {
+    await persistChallengesSnapshot();
     revalidateAllRelevantPaths(challengeId);
     return updatedChallenge;
   }
@@ -237,6 +295,7 @@ export async function updateGameProgressAction(challengeId: string, gameId: stri
   requireAdminSession();
   const updatedChallenge = setDataUpdateGameProgress(challengeId, gameId, change, note);
   if (updatedChallenge) {
+    await persistChallengesSnapshot();
     revalidateAllRelevantPaths(challengeId);
     return updatedChallenge;
   }
@@ -247,6 +306,7 @@ export async function logGameTryAction(challengeId: string, gameId: string, note
   requireAdminSession();
   const updatedChallenge = setDataLogGameTry(challengeId, gameId, note);
   if (updatedChallenge) {
+    await persistChallengesSnapshot();
     revalidateAllRelevantPaths(challengeId);
     return updatedChallenge;
   }
@@ -257,6 +317,7 @@ export async function addOverallNoteAction(challengeId: string, note: string): P
   requireAdminSession();
   const updatedChallenge = setDataAddOverallNote(challengeId, note);
   if (updatedChallenge) {
+    await persistChallengesSnapshot();
     revalidateAllRelevantPaths(challengeId);
     return updatedChallenge;
   }
@@ -267,6 +328,7 @@ export async function editOverallNoteAction(challengeId: string, noteIndex: numb
   requireAdminSession();
   const updatedChallenge = setDataEditOverallNote(challengeId, noteIndex, newNoteText);
   if (updatedChallenge) {
+    await persistChallengesSnapshot();
     revalidateAllRelevantPaths(challengeId);
     return updatedChallenge;
   }
@@ -277,6 +339,7 @@ export async function deleteOverallNoteAction(challengeId: string, noteIndex: nu
   requireAdminSession();
   const updatedChallenge = setDataDeleteOverallNote(challengeId, noteIndex);
   if (updatedChallenge) {
+    await persistChallengesSnapshot();
     revalidateAllRelevantPaths(challengeId);
     return updatedChallenge;
   }
@@ -287,6 +350,7 @@ export async function endChallengeAction(challengeId: string): Promise<Challenge
   requireAdminSession();
   const updatedChallenge = setDataChallengeStatus(challengeId, 'past');
   if (updatedChallenge) {
+    await persistChallengesSnapshot();
     revalidateAllRelevantPaths(challengeId);
     return updatedChallenge;
   }
@@ -298,6 +362,7 @@ export async function resetChallengeAction(challengeId: string): Promise<Challen
   const futureDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
   const updatedChallenge = setDataResetChallengeToUpcoming(challengeId, futureDate);
   if (updatedChallenge) {
+    await persistChallengesSnapshot();
     revalidateAllRelevantPaths(challengeId);
     return updatedChallenge;
   }
@@ -309,6 +374,7 @@ export async function restorePastChallengeAction(challengeId: string): Promise<C
   const futureDate = new Date(Date.now() + 60 * 60 * 1000);
   const updatedChallenge = setDataResetChallengeToUpcoming(challengeId, futureDate);
   if (updatedChallenge) {
+    await persistChallengesSnapshot();
     revalidateAllRelevantPaths(challengeId);
     return updatedChallenge;
   }
@@ -316,11 +382,13 @@ export async function restorePastChallengeAction(challengeId: string): Promise<C
 }
 
 export async function fetchChallengeDetailsAction(challengeId: string): Promise<Challenge | null> {
+  await hydrateChallengesSnapshotForFreshSession();
   const challenge = getDataChallengeById(challengeId);
   return challenge || null;
 }
 
 export async function getChallengeCreationBlockers(): Promise<{ hasLiveChallenge: boolean; hasUpcomingChallenge: boolean }> {
+  await hydrateChallengesSnapshotForFreshSession();
   const allChallengesData = getDataChallenges();
   const isLiveChallengePresent = allChallengesData.some((challenge) => challenge.status === 'live');
   const isUpcomingChallengePresent = allChallengesData.some((challenge) =>
@@ -345,6 +413,7 @@ export async function deleteChallengeAction(challengeId: string): Promise<{ succ
 
   const success = setDataDeleteChallengeById(challengeId);
   if (success) {
+    await persistChallengesSnapshot();
     revalidateAllRelevantPaths();
   }
 
@@ -352,6 +421,8 @@ export async function deleteChallengeAction(challengeId: string): Promise<{ succ
 }
 
 export async function fetchLivePageDataAction(): Promise<Challenge | null> {
+  await hydrateChallengesSnapshotForFreshSession();
+
   let challengeToLoad: Challenge | null = getDataLiveChallengeDetails();
   if (!challengeToLoad) {
     challengeToLoad = getDataUpcomingChallenge();
