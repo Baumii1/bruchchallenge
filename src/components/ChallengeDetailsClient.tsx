@@ -32,6 +32,8 @@ interface ChallengeDetailsClientProps {
   initialChallenge: Challenge;
 }
 
+const CHALLENGE_STORAGE_KEY = 'bruchchallenge:challenges:v1';
+
 const formatTime = (totalSeconds: number): string => {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -70,16 +72,23 @@ export default function ChallengeDetailsClient({ initialChallenge }: ChallengeDe
     };
 
     const intervalId = setInterval(refreshChallenge, 1000);
+    const handleStorageUpdate = (event: StorageEvent) => {
+      if (event.key && event.key !== CHALLENGE_STORAGE_KEY) {
+        return;
+      }
+
+      void refreshChallenge();
+    };
     const handleDataUpdate = () => {
       void refreshChallenge();
     };
 
-    window.addEventListener('storage', handleDataUpdate);
+    window.addEventListener('storage', handleStorageUpdate);
     window.addEventListener('bruchchallenge:data-updated', handleDataUpdate as EventListener);
 
     return () => {
       clearInterval(intervalId);
-      window.removeEventListener('storage', handleDataUpdate);
+      window.removeEventListener('storage', handleStorageUpdate);
       window.removeEventListener('bruchchallenge:data-updated', handleDataUpdate as EventListener);
     };
   }, [initialChallenge.id]);
