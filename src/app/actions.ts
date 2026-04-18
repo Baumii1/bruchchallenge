@@ -86,6 +86,25 @@ const normalizeOptionalText = (value: string | null | undefined): string | undef
   return trimmed.length > 0 ? trimmed : undefined;
 };
 
+const cleanForFirestore = <T,>(value: T): T => {
+  if (Array.isArray(value)) {
+    return value.map((entry) => cleanForFirestore(entry)) as T;
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>((accumulator, [key, entryValue]) => {
+      if (entryValue === undefined) {
+        return accumulator;
+      }
+
+      accumulator[key] = cleanForFirestore(entryValue);
+      return accumulator;
+    }, {}) as T;
+  }
+
+  return value;
+};
+
 const decodeFirestoreValue = (value: any): unknown => {
   if (!value || typeof value !== 'object') {
     return undefined;
@@ -231,9 +250,35 @@ const hydrateChallengesSnapshotForFreshSession = async () => {
   }
 };
 
-const persistChallengesSnapshot = async () => {
-  const snapshot = cloneData(challenges);
+const syncChallengesSnapshotFromRemote = async () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
 
+  try {
+    const remoteSnapshot = await readRemoteChallengesSnapshot();
+    if (!remoteSnapshot) {
+      return;
+    }
+
+    const serializedRemoteSnapshot = JSON.stringify(remoteSnapshot);
+    const serializedLocalSnapshot = window.localStorage.getItem(STORAGE_KEY);
+
+    if (serializedRemoteSnapshot === serializedLocalSnapshot) {
+      return;
+    }
+
+    replaceInMemoryChallenges(remoteSnapshot);
+    writeChallengesToBrowserStorage(remoteSnapshot);
+  } catch (error) {
+    console.warn('Remote challenge sync failed, keeping local snapshot.', error);
+  }
+};
+
+const persistChallengesSnapshot = async () => {
+  const snapshot = cleanForFirestore(cloneData(challenges)) as Challenge[];
+
+  replaceInMemoryChallenges(snapshot);
   writeChallengesToBrowserStorage(snapshot);
 
   const db = getFirebaseDb();
@@ -473,12 +518,14 @@ export async function restorePastChallengeAction(challengeId: string): Promise<C
 }
 
 export async function fetchChallengeDetailsAction(challengeId: string): Promise<Challenge | null> {
+  await syncChallengesSnapshotFromRemote();
   await hydrateChallengesSnapshotForFreshSession();
   const challenge = getDataChallengeById(challengeId);
   return challenge || null;
 }
 
 export async function getChallengeCreationBlockers(): Promise<{ hasLiveChallenge: boolean; hasUpcomingChallenge: boolean }> {
+  await syncChallengesSnapshotFromRemote();
   await hydrateChallengesSnapshotForFreshSession();
   const allChallengesData = getDataChallenges();
   const isLiveChallengePresent = allChallengesData.some((challenge) => challenge.status === 'live');
@@ -512,6 +559,7 @@ export async function deleteChallengeAction(challengeId: string): Promise<{ succ
 }
 
 export async function fetchLivePageDataAction(): Promise<Challenge | null> {
+  await syncChallengesSnapshotFromRemote();
   await hydrateChallengesSnapshotForFreshSession();
 
   let challengeToLoad: Challenge | null = getDataLiveChallengeDetails();
