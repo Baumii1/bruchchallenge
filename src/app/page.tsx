@@ -17,6 +17,8 @@ import { Trophy, CalendarSearch, Sparkles, Zap, Flame, History, Gamepad2 } from 
 // For static export, pages should be buildable as static HTML.
 // Data fetching like getDataChallenges() will run at build time.
 
+const CHALLENGE_STORAGE_KEY = 'bruchchallenge:challenges:v1';
+
 export default function HomePage() {
   const [allCurrentChallenges, setAllCurrentChallenges] = useState<Challenge[]>(() => getDataChallenges());
 
@@ -27,13 +29,20 @@ export default function HomePage() {
   useEffect(() => {
     refreshChallenges();
     const poller = setInterval(refreshChallenges, 1000);
+    const handleStorageUpdate = (event: StorageEvent) => {
+      if (event.key && event.key !== CHALLENGE_STORAGE_KEY) {
+        return;
+      }
+
+      refreshChallenges();
+    };
     const handleDataUpdate = () => refreshChallenges();
 
-    window.addEventListener('storage', handleDataUpdate);
+    window.addEventListener('storage', handleStorageUpdate);
     window.addEventListener('bruchchallenge:data-updated', handleDataUpdate as EventListener);
     return () => {
       clearInterval(poller);
-      window.removeEventListener('storage', handleDataUpdate);
+      window.removeEventListener('storage', handleStorageUpdate);
       window.removeEventListener('bruchchallenge:data-updated', handleDataUpdate as EventListener);
     };
   }, [refreshChallenges]);
