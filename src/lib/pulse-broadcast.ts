@@ -25,8 +25,8 @@ const getPulseBroadcastDoc = () => {
   return doc(db, COLLECTION_ID, DOC_ID);
 };
 
-const sanitizeEntry = (entry: BroadcastPulseEntry) => {
-  const sanitized: Record<string, unknown> = {
+const sanitizeEntry = (entry: BroadcastPulseEntry): BroadcastPulseEntry => {
+  const sanitized: BroadcastPulseEntry = {
     id: entry.id,
     name: entry.name,
     bpm: entry.bpm,
@@ -110,7 +110,7 @@ export const readPulseBroadcast = async (): Promise<Record<string, BroadcastPuls
 };
 
 export const writePulseBroadcastEntry = async (entry: BroadcastPulseEntry): Promise<void> => {
-  const sanitizedEntry = sanitizeEntry(entry) as BroadcastPulseEntry;
+  const sanitizedEntry = sanitizeEntry(entry);
   const existingEntries = await readPulseBroadcast();
   const nextEntries: Record<string, BroadcastPulseEntry> = {
     ...existingEntries,
