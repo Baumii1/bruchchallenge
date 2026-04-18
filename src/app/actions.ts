@@ -159,11 +159,16 @@ const readRemoteChallengesSnapshotViaRest = async (): Promise<Challenge[] | null
     return null;
   }
 
+  await ensureViewerFirebaseSession();
+
+  const auth = getFirebaseAuthClient();
+  const idToken = auth?.currentUser ? await auth.currentUser.getIdToken() : null;
   const response = await fetch(
     `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/${SHARED_STATE_COLLECTION_ID}/${SHARED_STATE_DOC_ID}`,
     {
       method: 'GET',
       cache: 'no-store',
+      headers: idToken ? { Authorization: `Bearer ${idToken}` } : undefined,
     }
   );
 
