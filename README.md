@@ -28,6 +28,6 @@ This repo is configured for static export with:
 
 ### Important
 
-In repository settings, set **Pages → Source = GitHub Actions**. 
+In repository settings, set **Pages → Source = GitHub Actions**.
 
 If Pages is set to **Deploy from branch (main)**, GitHub will show repository files/README instead of the built app.
