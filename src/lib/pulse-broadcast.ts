@@ -111,17 +111,17 @@ export const readPulseBroadcast = async (): Promise<Record<string, BroadcastPuls
 
 export const writePulseBroadcastEntry = async (entry: BroadcastPulseEntry): Promise<void> => {
   const sanitizedEntry = sanitizeEntry(entry);
-  const existingEntries = readLocalPulseBroadcast();
+  const existingEntries = await readPulseBroadcast();
   const nextEntries: Record<string, BroadcastPulseEntry> = {
     ...existingEntries,
     [entry.id]: sanitizedEntry,
   };
 
   persistLocalPulseBroadcast(nextEntries);
-  dispatchPulseUpdate();
 
   const pulseDoc = getPulseBroadcastDoc();
   if (!pulseDoc) {
+    dispatchPulseUpdate();
     return;
   }
 
@@ -133,10 +133,12 @@ export const writePulseBroadcastEntry = async (entry: BroadcastPulseEntry): Prom
     },
     { merge: true }
   );
+
+  dispatchPulseUpdate();
 };
 
 export const clearPulseBroadcastEntry = async (playerId: string): Promise<void> => {
-  const existingEntries = readLocalPulseBroadcast();
+  const existingEntries = await readPulseBroadcast();
   const nextEntries: Record<string, BroadcastPulseEntry> = {
     ...existingEntries,
     [playerId]: {
@@ -152,10 +154,10 @@ export const clearPulseBroadcastEntry = async (playerId: string): Promise<void> 
   };
 
   persistLocalPulseBroadcast(nextEntries);
-  dispatchPulseUpdate();
 
   const pulseDoc = getPulseBroadcastDoc();
   if (!pulseDoc) {
+    dispatchPulseUpdate();
     return;
   }
 
@@ -167,4 +169,6 @@ export const clearPulseBroadcastEntry = async (playerId: string): Promise<void> 
     },
     { merge: true }
   );
+
+  dispatchPulseUpdate();
 };
