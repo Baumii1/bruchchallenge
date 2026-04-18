@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, type Auth } from 'firebase/auth';
+import { getAuth, signInAnonymously, type Auth } from 'firebase/auth';
 import { getFirestore, initializeFirestore, type Firestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -19,6 +19,7 @@ const hasFirebaseConfig = Boolean(
 let cachedApp: FirebaseApp | null | undefined;
 let cachedAuth: Auth | null | undefined;
 let cachedDb: Firestore | null | undefined;
+let viewerSessionPromise: Promise<void> | null = null;
 
 export const isFirebaseConfigured = (): boolean => hasFirebaseConfig;
 
@@ -44,6 +45,34 @@ export const getFirebaseAuthClient = (): Auth | null => {
   const app = getFirebaseApp();
   cachedAuth = app ? getAuth(app) : null;
   return cachedAuth;
+};
+
+export const ensureViewerFirebaseSession = async (): Promise<void> => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const auth = getFirebaseAuthClient();
+  if (!auth) {
+    return;
+  }
+
+  if (auth.currentUser) {
+    return;
+  }
+
+  if (!viewerSessionPromise) {
+    viewerSessionPromise = signInAnonymously(auth)
+      .then(() => undefined)
+      .catch((error) => {
+        console.warn('Anonymous Firebase sign-in unavailable for viewer session.', error);
+      })
+      .finally(() => {
+        viewerSessionPromise = null;
+      });
+  }
+
+  await viewerSessionPromise;
 };
 
 export const getFirebaseDb = (): Firestore | null => {
