@@ -60,7 +60,6 @@ export const getFirebaseDb = (): Firestore | null => {
   try {
     cachedDb = initializeFirestore(app, {
       experimentalAutoDetectLongPolling: true,
-      useFetchStreams: false,
     });
   } catch {
     cachedDb = getFirestore(app);
