@@ -63,6 +63,7 @@ interface ChallengeEditorValues {
 const STORAGE_KEY = 'bruchchallenge:challenges:v1';
 const SHARED_STATE_COLLECTION_ID = 'bruchchallenge';
 const SHARED_STATE_DOC_ID = 'shared-state';
+const FIREBASE_PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.trim() ?? '';
 
 const cloneData = <T,>(value: T): T => {
   try {
@@ -85,6 +86,60 @@ const normalizeOptionalText = (value: string | null | undefined): string | undef
   return trimmed.length > 0 ? trimmed : undefined;
 };
 
+const decodeFirestoreValue = (value: any): unknown => {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  if ('nullValue' in value) {
+    return null;
+  }
+
+  if ('stringValue' in value) {
+    return value.stringValue;
+  }
+
+  if ('booleanValue' in value) {
+    return value.booleanValue;
+  }
+
+  if ('integerValue' in value) {
+    return Number(value.integerValue);
+  }
+
+  if ('doubleValue' in value) {
+    return Number(value.doubleValue);
+  }
+
+  if ('timestampValue' in value) {
+    return value.timestampValue;
+  }
+
+  if ('arrayValue' in value) {
+    const values = Array.isArray(value.arrayValue?.values) ? value.arrayValue.values : [];
+    return values.map((entry: any) => decodeFirestoreValue(entry));
+  }
+
+  if ('mapValue' in value) {
+    const fields = value.mapValue?.fields ?? {};
+    return Object.entries(fields).reduce<Record<string, unknown>>((accumulator, [key, nestedValue]) => {
+      accumulator[key] = decodeFirestoreValue(nestedValue);
+      return accumulator;
+    }, {});
+  }
+
+  return undefined;
+};
+
+const extractRemoteChallengesFromRestPayload = (payload: any): Challenge[] | null => {
+  const decoded = decodeFirestoreValue({ mapValue: { fields: payload?.fields ?? {} } }) as Record<string, unknown> | undefined;
+  const remoteChallenges = decoded?.challenges;
+
+  return Array.isArray(remoteChallenges) && remoteChallenges.length > 0
+    ? cloneData(remoteChallenges as Challenge[])
+    : null;
+};
+
 const writeChallengesToBrowserStorage = (snapshot: Challenge[]) => {
   if (typeof window === 'undefined') {
     return;
@@ -99,26 +154,52 @@ const replaceInMemoryChallenges = (snapshot: Challenge[]) => {
   challenges.splice(0, challenges.length, ...nextSnapshot);
 };
 
+const readRemoteChallengesSnapshotViaRest = async (): Promise<Challenge[] | null> => {
+  if (!FIREBASE_PROJECT_ID) {
+    return null;
+  }
+
+  const response = await fetch(
+    `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/${SHARED_STATE_COLLECTION_ID}/${SHARED_STATE_DOC_ID}`,
+    {
+      method: 'GET',
+      cache: 'no-store',
+    }
+  );
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = await response.json();
+  return extractRemoteChallengesFromRestPayload(payload);
+};
+
 const readRemoteChallengesSnapshot = async (): Promise<Challenge[] | null> => {
   const db = getFirebaseDb();
-  if (!db) {
-    return null;
+  if (db) {
+    try {
+      const { doc, getDoc } = await import('firebase/firestore');
+      const challengeDocRef = doc(db, SHARED_STATE_COLLECTION_ID, SHARED_STATE_DOC_ID);
+      const snapshot = await getDoc(challengeDocRef);
+
+      if (snapshot.exists()) {
+        const remoteChallenges = snapshot.data()?.challenges as Challenge[] | undefined;
+        if (Array.isArray(remoteChallenges) && remoteChallenges.length > 0) {
+          return cloneData(remoteChallenges);
+        }
+      }
+    } catch (error) {
+      console.warn('Firestore SDK snapshot fetch failed, trying REST fallback.', error);
+    }
   }
 
-  const { doc, getDoc } = await import('firebase/firestore');
-  const challengeDocRef = doc(db, SHARED_STATE_COLLECTION_ID, SHARED_STATE_DOC_ID);
-  const snapshot = await getDoc(challengeDocRef);
-
-  if (!snapshot.exists()) {
+  try {
+    return await readRemoteChallengesSnapshotViaRest();
+  } catch (error) {
+    console.warn('Firestore REST snapshot fetch failed.', error);
     return null;
   }
-
-  const remoteChallenges = snapshot.data()?.challenges as Challenge[] | undefined;
-  if (!Array.isArray(remoteChallenges) || remoteChallenges.length === 0) {
-    return null;
-  }
-
-  return cloneData(remoteChallenges);
 };
 
 const hydrateChallengesSnapshotForFreshSession = async () => {
@@ -131,13 +212,17 @@ const hydrateChallengesSnapshotForFreshSession = async () => {
     return;
   }
 
-  const remoteSnapshot = await readRemoteChallengesSnapshot();
-  if (!remoteSnapshot) {
-    return;
-  }
+  try {
+    const remoteSnapshot = await readRemoteChallengesSnapshot();
+    if (!remoteSnapshot) {
+      return;
+    }
 
-  replaceInMemoryChallenges(remoteSnapshot);
-  writeChallengesToBrowserStorage(remoteSnapshot);
+    replaceInMemoryChallenges(remoteSnapshot);
+    writeChallengesToBrowserStorage(remoteSnapshot);
+  } catch (error) {
+    console.warn('Fresh-session challenge hydration failed, using current in-memory snapshot.', error);
+  }
 };
 
 const persistChallengesSnapshot = async () => {
