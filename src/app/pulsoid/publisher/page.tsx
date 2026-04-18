@@ -157,33 +157,36 @@ export default function PulsoidPublisherPage() {
       };
 
       socket.onmessage = (event) => {
-        void (async () => {
-          const payload = typeof event.data === 'string' ? event.data : '';
-          const parsed = parseRealtimeMessage(payload);
+        const payload = typeof event.data === 'string' ? event.data : '';
+        const parsed = parseRealtimeMessage(payload);
+        const nextStatusMessage = parsed.bpm !== null
+          ? `Publishing läuft: ${parsed.bpm} BPM`
+          : (parsed.message ?? 'Publishing läuft ohne BPM-Wert.');
 
-          try {
-            await writePulseBroadcastEntry({
-              id: selectedPlayer.id,
-              name: selectedPlayer.name,
-              bpm: parsed.bpm,
-              status: parsed.bpm !== null ? 'ok' : 'missing',
-              source: 'pulsoid',
-              updatedAt: Date.now(),
-              measuredAt: parsed.measuredAt,
-              message: parsed.message,
-            });
+        if (!isCancelled) {
+          setLatestBpm(parsed.bpm);
+          setStatusMessage(nextStatusMessage);
+        }
 
-            if (!isCancelled) {
-              setLatestBpm(parsed.bpm);
-              setStatusMessage(parsed.bpm !== null ? `Publishing läuft: ${parsed.bpm} BPM` : (parsed.message ?? 'Publishing läuft ohne BPM-Wert.'));
-            }
-          } catch (error) {
-            if (!isCancelled) {
-              setPublisherStatus('error');
-              setStatusMessage(error instanceof Error ? `Broadcast write failed: ${error.message}` : 'Broadcast write failed.');
-            }
+        void writePulseBroadcastEntry({
+          id: selectedPlayer.id,
+          name: selectedPlayer.name,
+          bpm: parsed.bpm,
+          status: parsed.bpm !== null ? 'ok' : 'missing',
+          source: 'pulsoid',
+          updatedAt: Date.now(),
+          measuredAt: parsed.measuredAt,
+          message: parsed.message,
+        }).catch((error) => {
+          if (!isCancelled) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown broadcast sync error.';
+            setStatusMessage(
+              parsed.bpm !== null
+                ? `Publishing läuft lokal: ${parsed.bpm} BPM · Broadcast-Sync fehlgeschlagen (${errorMessage})`
+                : `Realtime läuft, Broadcast-Sync fehlgeschlagen (${errorMessage})`
+            );
           }
-        })();
+        });
       };
 
       socket.onerror = () => {
