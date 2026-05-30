@@ -139,8 +139,8 @@ function PulseAnimationCard({
               transformOrigin: 'top left',
               overflow: 'hidden',
               background: 'transparent',
-              colorScheme: 'dark',
-              filter: 'invert(1) hue-rotate(180deg) saturate(1.35) contrast(0.96) brightness(1.62)',
+              backgroundColor: 'transparent',
+              colorScheme: 'normal',
             }}
           />
           <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-inset ring-white/10" />
