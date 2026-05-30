@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Edit3, Loader2 } from 'lucide-react';
 import { fetchChallengeDetailsAction } from '@/app/actions';
 import ChallengeDetailsClient from '@/components/ChallengeDetailsClient';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -59,5 +59,19 @@ export default function ChallengeDetailsViewClient() {
     );
   }
 
-  return <ChallengeDetailsClient key={challenge.id} initialChallenge={challenge} />;
+  return (
+    <div className="space-y-4">
+      {challenge.status === 'upcoming' && (
+        <div className="flex justify-end">
+          <Button asChild variant="outline">
+            <Link href={`/admin/edit-challenge?id=${challenge.id}`}>
+              <Edit3 className="mr-2 h-4 w-4" />
+              Geplante Challenge bearbeiten
+            </Link>
+          </Button>
+        </div>
+      )}
+      <ChallengeDetailsClient key={challenge.id} initialChallenge={challenge} />
+    </div>
+  );
 }

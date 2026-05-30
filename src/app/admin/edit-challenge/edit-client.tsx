@@ -275,7 +275,7 @@ export default function EditChallengeClientPage() {
           Challenge bearbeiten
         </CardTitle>
         <CardDescription>
-          Bearbeite Titel, Zeiten, Notizen und Spiele dieser Challenge. Änderungen gelten sofort für die Runtime-Daten.
+          Bearbeite Titel, Zeiten, Notizen und Spiele. Geplante Challenges können hier vor dem Start vollständig angepasst werden, inklusive neuer Games.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-8">

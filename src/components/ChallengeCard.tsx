@@ -7,7 +7,7 @@ import { GameIconFactory } from '@/components/icons/GameIconFactory';
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
-import { CalendarDays, Gamepad2, Info, Zap } from 'lucide-react';
+import { CalendarDays, Edit3, Gamepad2, Info, Zap } from 'lucide-react';
 
 interface ChallengeCardProps {
   challenge: Challenge;
@@ -91,11 +91,20 @@ export function ChallengeCard({ challenge, isUpcomingHero = false }: ChallengeCa
         </div>
       </CardContent>
       <CardFooter className="px-4 md:px-5 pb-4 pt-2">
-        <Button asChild className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm hover:shadow-md transition-all">
-          <Link href={`/challenges/view?id=${challenge.id}`}>
-            <Info className="mr-2 h-4 w-4" /> View Details
-          </Link>
-        </Button>
+        <div className="flex w-full flex-col gap-2">
+          <Button asChild className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm hover:shadow-md transition-all">
+            <Link href={`/challenges/view?id=${challenge.id}`}>
+              <Info className="mr-2 h-4 w-4" /> View Details
+            </Link>
+          </Button>
+          {challenge.status === 'upcoming' && (
+            <Button asChild variant="outline" className="w-full">
+              <Link href={`/admin/edit-challenge?id=${challenge.id}`}>
+                <Edit3 className="mr-2 h-4 w-4" /> Geplante Challenge bearbeiten
+              </Link>
+            </Button>
+          )}
+        </div>
       </CardFooter>
     </Card>
   );

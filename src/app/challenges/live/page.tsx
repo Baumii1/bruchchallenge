@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useTransition, useMemo } from 'react';
@@ -21,13 +20,13 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { GameIconFactory } from '@/components/icons/GameIconFactory';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from"@/components/ui/alert";
 import { RefreshCw, PlayCircle, PauseCircle, Settings2, RadioTower, ChevronUp, Trophy, StopCircle, ListFilter, RotateCcw, Loader2, MessageSquarePlus, NotepadText, Edit3, Trash2, Check, X, HeartPulse, ChevronsUpDown } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from"@/hooks/use-toast";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -40,7 +39,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+} from"@/components/ui/alert-dialog";
 import { useAuth } from '@/context/AuthContext';
 import { fetchAllPulseReadings, getPulsePlayers, type PulseReading } from '@/lib/pulse';
 import { subscribePulseBroadcast, type BroadcastPulseEntry } from '@/lib/pulse-broadcast';
@@ -120,7 +119,7 @@ export default function LiveChallengePage() {
       setLiveChallenge(challengeToLoad);
     } catch (error) {
         console.error("Failed to fetch live page data:", error);
-        toast({title: "Error Loading Challenge", description: "Could not fetch the current challenge data.", variant: "destructive"});
+        toast({title:"Error Loading Challenge", description:"Could not fetch the current challenge data.", variant:"destructive"});
         setLiveChallenge(null);
     }
     if (showLoadingSpinner) setIsLoading(false);
@@ -244,21 +243,21 @@ const handleServerAction = async (
 
         if (options.onSuccessSetNull) {
             setLiveChallenge(null);
-            toast({ title: successMessage, variant: "default" });
+            toast({ title: successMessage, variant:"default" });
             await fetchAndSetChallenge(false);
         } else if (resultChallenge) {
-            toast({ title: successMessage, variant: "default" });
+            toast({ title: successMessage, variant:"default" });
             if (options.optimisticUpdate !== false) {
                  setLiveChallenge(resultChallenge);
             }
             await fetchAndSetChallenge(false);
         } else {
-           toast({ title: errorMessage || "Action reported no change or failed", description: "Please check the challenge state.", variant: "destructive" });
+           toast({ title: errorMessage ||"Action reported no change or failed", description:"Please check the challenge state.", variant:"destructive" });
            await fetchAndSetChallenge(false);
         }
       } catch (error) {
-        console.error(errorMessage || "Action error:", error);
-        toast({ title: "Error", description: (error as Error).message || "An unexpected error occurred.", variant: "destructive" });
+        console.error(errorMessage ||"Action error:", error);
+        toast({ title:"Error", description: (error as Error).message ||"An unexpected error occurred.", variant:"destructive" });
         await fetchAndSetChallenge(false);
       }
     });
@@ -267,9 +266,7 @@ const handleServerAction = async (
   const handleStartChallenge = () => {
     if (liveChallenge && liveChallenge.status === 'upcoming') {
       handleServerAction(
-        () => startChallengeAction(liveChallenge.id),
-        "Challenge Started!",
-        "Failed to start challenge",
+        () => startChallengeAction(liveChallenge.id),"Challenge Started!","Failed to start challenge",
         { refetchOnSuccess: true, optimisticUpdate: true }
       );
     }
@@ -279,8 +276,7 @@ const handleServerAction = async (
     if (liveChallenge && liveChallenge.status === 'live') {
       handleServerAction(
         () => toggleChallengeTimerAction(liveChallenge.id),
-        `Challenge Timer ${liveChallenge.isChallengeTimerActive ? 'Paused' : 'Resumed'}`,
-        "Failed to toggle challenge timer",
+        `Challenge Timer ${liveChallenge.isChallengeTimerActive ? 'Paused' : 'Resumed'}`,"Failed to toggle challenge timer",
         { refetchOnSuccess: true, optimisticUpdate: true }
       );
     }
@@ -291,8 +287,7 @@ const handleServerAction = async (
       const game = liveChallenge.games.find(g => g.id === gameId);
       handleServerAction(
         () => toggleGameTimerAction(liveChallenge.id, gameId),
-        `Game Timer for "${game?.name}" ${game?.isTimerActive && liveChallenge.activeGameId === game.id ? 'Paused' : 'Started/Resumed'}`,
-        "Failed to toggle game timer",
+        `Game Timer for"${game?.name}" ${game?.isTimerActive && liveChallenge.activeGameId === game.id ? 'Paused' : 'Started/Resumed'}`,"Failed to toggle game timer",
         { refetchOnSuccess: true, optimisticUpdate: true }
       );
     }
@@ -300,12 +295,11 @@ const handleServerAction = async (
 
   const handleUpdateProgress = (gameId: string) => {
     if (liveChallenge && liveChallenge.status === 'live') {
-      const gameName = liveChallenge.games.find(g => g.id === gameId)?.name || "Game";
-      const note = manualLogNotes[gameId] || "";
+      const gameName = liveChallenge.games.find(g => g.id === gameId)?.name ||"Game";
+      const note = manualLogNotes[gameId] ||"";
       handleServerAction(
         () => updateGameProgressAction(liveChallenge.id, gameId, 1, note),
-        `Progress updated for ${gameName}`,
-        "Failed to update progress",
+        `Progress updated for ${gameName}`,"Failed to update progress",
         { refetchOnSuccess: true, optimisticUpdate: true }
       );
       setManualLogNotes(prev => ({...prev, [gameId]: ''}));
@@ -314,12 +308,11 @@ const handleServerAction = async (
 
   const handleLogTry = (gameId: string) => {
     if (liveChallenge && liveChallenge.status === 'live') {
-      const gameName = liveChallenge.games.find(g => g.id === gameId)?.name || "Game";
-      const note = manualLogNotes[gameId] || "";
+      const gameName = liveChallenge.games.find(g => g.id === gameId)?.name ||"Game";
+      const note = manualLogNotes[gameId] ||"";
       handleServerAction(
         () => logGameTryAction(liveChallenge.id, gameId, note),
-        `Attempt logged for ${gameName}`,
-        "Failed to log attempt",
+        `Attempt logged for ${gameName}`,"Failed to log attempt",
         { refetchOnSuccess: true, optimisticUpdate: true }
       );
       setManualLogNotes(prev => ({...prev, [gameId]: ''}));
@@ -329,14 +322,12 @@ const handleServerAction = async (
   const handleAddOverallNoteInternal = () => {
     if (liveChallenge && liveChallenge.status === 'live' && newOverallNote.trim()) {
         handleServerAction(
-            () => addOverallNoteAction(liveChallenge.id, newOverallNote.trim()),
-            "Overall note added.",
-            "Failed to add overall note.",
+            () => addOverallNoteAction(liveChallenge.id, newOverallNote.trim()),"Overall note added.","Failed to add overall note.",
             { refetchOnSuccess: true, optimisticUpdate: true }
         );
         setNewOverallNote('');
     } else if (!newOverallNote.trim()) {
-        toast({ title: "Cannot add empty note", variant: "destructive"});
+        toast({ title:"Cannot add empty note", variant:"destructive"});
     }
   };
 
@@ -353,23 +344,19 @@ const handleServerAction = async (
   const handleSaveEditedNote = () => {
     if (liveChallenge && editingNoteIndex !== null && editingNoteText.trim()) {
       handleServerAction(
-        () => editOverallNoteAction(liveChallenge.id, editingNoteIndex, editingNoteText.trim()),
-        "Note updated.",
-        "Failed to update note.",
+        () => editOverallNoteAction(liveChallenge.id, editingNoteIndex, editingNoteText.trim()),"Note updated.","Failed to update note.",
         { refetchOnSuccess: true, optimisticUpdate: true }
       );
       handleCancelEditNote();
     } else if (!editingNoteText.trim()){
-      toast({ title: "Cannot save an empty note", variant: "destructive" });
+      toast({ title:"Cannot save an empty note", variant:"destructive" });
     }
   };
 
   const handleDeleteNote = () => {
     if (liveChallenge && noteToDeleteIndex !== null) {
       handleServerAction(
-        () => deleteOverallNoteAction(liveChallenge.id, noteToDeleteIndex),
-        "Note deleted.",
-        "Failed to delete note.",
+        () => deleteOverallNoteAction(liveChallenge.id, noteToDeleteIndex),"Note deleted.","Failed to delete note.",
         { refetchOnSuccess: true, optimisticUpdate: true }
       );
     }
@@ -379,9 +366,7 @@ const handleServerAction = async (
   const confirmEndChallenge = () => {
     if (liveChallenge && liveChallenge.status === 'live') {
         handleServerAction(
-            () => endChallengeAction(liveChallenge.id),
-            "Challenge Ended and Marked as Past.",
-            "Failed to end challenge.",
+            () => endChallengeAction(liveChallenge.id),"Challenge Ended and Marked as Past.","Failed to end challenge.",
             { onSuccessSetNull: true, refetchOnSuccess: true }
         );
     }
@@ -391,13 +376,11 @@ const handleServerAction = async (
   const confirmResetState = () => {
     if(liveChallenge){
         handleServerAction(
-            () => resetChallengeAction(liveChallenge.id),
-            "Challenge state has been reset to upcoming.",
-            "Failed to reset challenge.",
+            () => resetChallengeAction(liveChallenge.id),"Challenge state has been reset to upcoming.","Failed to reset challenge.",
             { optimisticUpdate: true, refetchOnSuccess: true }
         );
     } else {
-        toast({title: "No Challenge", description: "No challenge loaded to reset.", variant: "default"});
+        toast({title:"No Challenge", description:"No challenge loaded to reset.", variant:"default"});
         fetchAndSetChallenge();
     }
     setShowResetConfirm(false);
@@ -420,7 +403,7 @@ const handleServerAction = async (
         <AlertDescription>
           The arena is currently quiet. A new challenge might be brewing {isAdmin && <>or you can <Link href="/admin/create-challenge" className="font-semibold underline hover:text-primary/80">create one</Link>!</>}
           <Button onClick={() => fetchAndSetChallenge()} variant="outline" size="sm" className="ml-4" disabled={isSubmitting || isLoading}>
-            <RefreshCw className={cn("mr-2 h-4 w-4", (isSubmitting || isLoading) && "animate-spin")}/> Retry Load
+            <RefreshCw className={cn("mr-2 h-4 w-4", (isSubmitting || isLoading) &&"animate-spin")}/> Retry Load
           </Button>
         </AlertDescription>
       </Alert>
@@ -432,7 +415,7 @@ const handleServerAction = async (
 
   return (
     <div className="space-y-8">
-      
+
       <section className="rounded-2xl border border-primary/20 bg-slate-950/80 p-4 shadow-xl">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
@@ -445,33 +428,33 @@ const handleServerAction = async (
       </section>
 
 <Card className={cn("shadow-2xl border-2 rounded-xl overflow-hidden",
-        isChallengeActuallyLive ? "border-destructive" : isChallengeUpcoming ? "border-accent" : "border-primary"
+        isChallengeActuallyLive ?"border-destructive" : isChallengeUpcoming ?"border-accent" :"border-primary"
       )}>
         <CardHeader className={cn("p-6",
-         isChallengeActuallyLive ? "bg-destructive/10 dark:bg-destructive/20" : isChallengeUpcoming ? "bg-accent/10 dark:bg-accent/20" : "bg-primary/10 dark:bg-primary/20"
+         isChallengeActuallyLive ?"bg-destructive/10 dark:bg-destructive/20" : isChallengeUpcoming ?"bg-accent/10 dark:bg-accent/20" :"bg-primary/10 dark:bg-primary/20"
         )}>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div className="flex items-center gap-3">
                 <RadioTower className={cn("h-10 w-10",
-                    isChallengeActuallyLive ? "text-destructive" : isChallengeUpcoming ? "text-accent" : "text-primary",
-                    isChallengeActuallyLive && liveChallenge.isChallengeTimerActive && "animate-ping absolute opacity-70"
+                    isChallengeActuallyLive ?"text-destructive" : isChallengeUpcoming ?"text-accent" :"text-primary",
+                    isChallengeActuallyLive && liveChallenge.isChallengeTimerActive &&"animate-ping absolute opacity-70"
                 )} />
                 <RadioTower className={cn("h-10 w-10 relative",
-                    isChallengeActuallyLive ? "text-destructive" : isChallengeUpcoming ? "text-accent" : "text-primary",
-                    !isChallengeActuallyLive && !isChallengeUpcoming && "opacity-50",
-                    isChallengeActuallyLive && !liveChallenge.isChallengeTimerActive && "opacity-60"
+                    isChallengeActuallyLive ?"text-destructive" : isChallengeUpcoming ?"text-accent" :"text-primary",
+                    !isChallengeActuallyLive && !isChallengeUpcoming &&"opacity-50",
+                    isChallengeActuallyLive && !liveChallenge.isChallengeTimerActive &&"opacity-60"
                 )} />
                 <CardTitle className={cn("text-3xl lg:text-4xl font-extrabold",
-                    isChallengeActuallyLive ? "text-destructive" : isChallengeUpcoming ? "text-accent" : "text-primary"
+                    isChallengeActuallyLive ?"text-destructive" : isChallengeUpcoming ?"text-accent" :"text-primary"
                 )}>{liveChallenge.title}</CardTitle>
             </div>
             <Badge
-                variant={isChallengeActuallyLive ? "destructive" : isChallengeUpcoming ? "default" : "secondary"}
+                variant={isChallengeActuallyLive ?"destructive" : isChallengeUpcoming ?"default" :"secondary"}
                 className={cn("text-lg px-4 py-2 shadow-md self-start sm:self-center",
-                    isChallengeUpcoming && "bg-accent text-accent-foreground"
+                    isChallengeUpcoming &&"bg-accent text-accent-foreground"
                 )}
             >
-              {liveChallenge.status.toUpperCase()} {liveChallenge.isChallengeTimerActive === false && liveChallenge.status==='live' ? "(PAUSED)" : ""}
+              {liveChallenge.status.toUpperCase()} {liveChallenge.isChallengeTimerActive === false && liveChallenge.status==='live' ?"(PAUSED)" :""}
             </Badge>
           </div>
           <CardDescription className="text-xl mt-3 font-medium">
@@ -480,7 +463,7 @@ const handleServerAction = async (
            {isChallengeUpcoming && isAdmin && (
              <Button onClick={handleStartChallenge} size="lg" className="mt-4 w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white shadow-lg text-base py-3" disabled={isSubmitting}>
                 {isSubmitting && liveChallenge.status === 'upcoming' ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : <PlayCircle className="mr-2 h-6 w-6" />}
-                {isSubmitting && liveChallenge.status === 'upcoming' ? "Starting..." : "Start This Challenge"}
+                {isSubmitting && liveChallenge.status === 'upcoming' ?"Starting..." :"Start This Challenge"}
             </Button>
            )}
         </CardHeader>
@@ -493,7 +476,7 @@ const handleServerAction = async (
                 {isChallengeActuallyLive && (
                     <Button onClick={handleToggleChallengeTimer} variant="outline" className="shadow-sm" disabled={isSubmitting}>
                         {isSubmitting && liveChallenge.isChallengeTimerActive ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : liveChallenge.isChallengeTimerActive ? <PauseCircle className="mr-2 h-5 w-5 text-red-500" /> : <PlayCircle className="mr-2 h-5 w-5 text-green-500" />}
-                        {isSubmitting && liveChallenge.isChallengeTimerActive ? "Pausing..." : isSubmitting && !liveChallenge.isChallengeTimerActive ? "Resuming..." : (liveChallenge.isChallengeTimerActive ? 'Pause Challenge Clock' : 'Resume Challenge Clock')}
+                        {isSubmitting && liveChallenge.isChallengeTimerActive ?"Pausing..." : isSubmitting && !liveChallenge.isChallengeTimerActive ?"Resuming..." : (liveChallenge.isChallengeTimerActive ? 'Pause Challenge Clock' : 'Resume Challenge Clock')}
                     </Button>
                 )}
 
@@ -515,7 +498,7 @@ const handleServerAction = async (
                       <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
                       <AlertDialogAction onClick={confirmResetState} disabled={isSubmitting} className="bg-amber-600 hover:bg-amber-700">
                         {isSubmitting && showResetConfirm ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        {isSubmitting && showResetConfirm ? "Resetting..." : "Yes, reset it!"}
+                        {isSubmitting && showResetConfirm ?"Resetting..." :"Yes, reset it!"}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
@@ -540,14 +523,14 @@ const handleServerAction = async (
                             <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
                             <AlertDialogAction onClick={confirmEndChallenge} disabled={isSubmitting} className="bg-destructive hover:bg-destructive/90">
                                  {isSubmitting && showEndConfirm ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                {isSubmitting && showEndConfirm ? "Ending..." : "Yes, End Challenge"}
+                                {isSubmitting && showEndConfirm ?"Ending..." :"Yes, End Challenge"}
                             </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
                  )}
                  <Button onClick={() => { fetchAndSetChallenge(); router.refresh();}} variant="outline" size="sm" className="shadow-sm" disabled={isSubmitting || isLoading}>
-                    <RefreshCw className={cn("mr-2 h-4 w-4", (isSubmitting || isLoading) && "animate-spin")}/> Force Refresh Data
+                    <RefreshCw className={cn("mr-2 h-4 w-4", (isSubmitting || isLoading) &&"animate-spin")}/> Force Refresh Data
                 </Button>
             </CardContent>
          </Card>
@@ -624,26 +607,26 @@ const handleServerAction = async (
                 isGameActuallyCompleted && 'bg-green-50 dark:bg-green-900/20 border-green-500/70'
               )}>
                 <CardHeader className="flex flex-row items-start gap-4 pb-3 pt-5 px-5">
-                  <GameIconFactory iconName={game.iconName} className={cn("h-12 w-12 mt-1 shrink-0", isGameActuallyCompleted ? "text-green-600" : isGameVisuallyActive ? "text-accent" : "text-primary")} />
+                  <GameIconFactory iconName={game.iconName} className={cn("h-12 w-12 mt-1 shrink-0", isGameActuallyCompleted ?"text-green-600" : isGameVisuallyActive ?"text-accent" :"text-primary")} />
                   <div className="flex-grow">
-                    <CardTitle className={cn("text-xl font-semibold", isGameActuallyCompleted && "text-green-700 dark:text-green-300", isGameVisuallyActive && "text-accent")}>{game.name}</CardTitle>
+                    <CardTitle className={cn("text-xl font-semibold", isGameActuallyCompleted &&"text-green-700 dark:text-green-300", isGameVisuallyActive &&"text-accent")}>{game.name}</CardTitle>
                     <CardDescription className="text-sm mt-0.5 line-clamp-2">{game.objective}</CardDescription>
                   </div>
                   {game.status && <Badge variant={isGameActuallyCompleted ? 'default' : 'secondary'} className={cn(
                       isGameActuallyCompleted ? 'bg-green-600 text-white' :
                       isGameVisuallyActive ? 'bg-accent text-accent-foreground' :
                       (game.isTimerActive === false && game.status !== 'completed' && game.status !== 'pending' && liveChallenge.status==='live' && game.accumulatedDuration && game.accumulatedDuration > 0 ? 'bg-yellow-400 text-yellow-900' : '')
-                    )}>{game.status.toUpperCase()} {game.isTimerActive === false && game.status !== 'completed' && game.status !== 'pending' && liveChallenge.status==='live' && game.accumulatedDuration && game.accumulatedDuration > 0 ? "(PAUSED)" : ""}</Badge>}
+                    )}>{game.status.toUpperCase()} {game.isTimerActive === false && game.status !== 'completed' && game.status !== 'pending' && liveChallenge.status==='live' && game.accumulatedDuration && game.accumulatedDuration > 0 ?"(PAUSED)" :""}</Badge>}
                 </CardHeader>
                 <CardContent className="px-5 pb-4 space-y-3 flex-grow">
-                  <div className={cn("text-lg font-medium tabular-nums", isGameVisuallyActive && "text-accent font-bold")}>
+                  <div className={cn("text-lg font-medium tabular-nums", isGameVisuallyActive &&"text-accent font-bold")}>
                     Game Time: {displayTimers[game.id] || formatTime(game.accumulatedDuration || 0)}
                   </div>
                   {game.targetProgress !== undefined && game.targetProgress !== null && (
                     <div>
                       <div className="flex justify-between text-sm mb-1">
                         <span className="text-muted-foreground">Progress</span>
-                        <span className={cn("font-semibold", isGameActuallyCompleted ? "text-green-600" : isGameVisuallyActive ? "text-accent" : "text-foreground")}>
+                        <span className={cn("font-semibold", isGameActuallyCompleted ?"text-green-600" : isGameVisuallyActive ?"text-accent" :"text-foreground")}>
                           {game.currentProgress || 0} / {game.targetProgress}
                         </span>
                       </div>
@@ -701,9 +684,9 @@ const handleServerAction = async (
                                     disabled={isSubmitting || !liveChallenge.isChallengeTimerActive }
                                 >
                                     {isSubmitting && liveChallenge.activeGameId === game.id && isGameVisuallyActive ? <Loader2 className="h-4 w-4 animate-spin" /> : isGameVisuallyActive ? <PauseCircle className="mr-2 h-4 w-4 text-red-500" /> : <PlayCircle className="mr-2 h-4 w-4 text-green-500" />}
-                                    {isSubmitting && liveChallenge.activeGameId === game.id && isGameVisuallyActive ? "Pausing..." :
-                                    isSubmitting && liveChallenge.activeGameId === game.id && !isGameVisuallyActive ? "Starting..." :
-                                    isSubmitting && liveChallenge.activeGameId !== game.id ? "Switching..." :
+                                    {isSubmitting && liveChallenge.activeGameId === game.id && isGameVisuallyActive ?"Pausing..." :
+                                    isSubmitting && liveChallenge.activeGameId === game.id && !isGameVisuallyActive ?"Starting..." :
+                                    isSubmitting && liveChallenge.activeGameId !== game.id ?"Switching..." :
                                     (isGameVisuallyActive ? 'Pause Game' :
                                     (liveChallenge.activeGameId && liveChallenge.activeGameId !== game.id ? 'Switch to This' : 'Start Game'))}
                                 </Button>
@@ -743,7 +726,7 @@ const handleServerAction = async (
             <CardContent>
                 <div className="space-y-3">
                      {liveChallenge.overallNotes && liveChallenge.overallNotes.length > 0 ? (
-                        <ul className="space-y-2.5 text-sm ">
+                        <ul className="space-y-2.5 text-sm">
                             {liveChallenge.overallNotes.map((note, index) => (
                                 <li key={index} className="p-3 border rounded-md bg-muted/50 dark:bg-muted/20 flex justify-between items-start group">
                                     {editingNoteIndex === index ? (

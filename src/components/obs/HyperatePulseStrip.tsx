@@ -23,7 +23,6 @@ const appendHyperateEmbedParams = (rawUrl: string): string => {
 
   try {
     const url = new URL(rawUrl);
-    // Harmless if ignored; useful if HypeRate supports transparent/dark embed params.
     url.searchParams.set('transparent', 'true');
     url.searchParams.set('background', 'transparent');
     url.searchParams.set('bg', 'transparent');
@@ -60,8 +59,9 @@ export function HyperatePulseStrip({ className, embedded = false, livePage = fal
   return (
     <div
       className={cn(
-        'obs-browser-source grid grid-cols-2 overflow-hidden text-white [scrollbar-width:none]',
-        embedded ? 'h-[104px] gap-2' : livePage ? 'min-h-[152px] gap-4' : 'h-[152px] w-[790px] max-w-full gap-3',
+        !livePage && 'obs-browser-source',
+        'grid grid-cols-2 overflow-hidden text-white [scrollbar-width:none]',
+        embedded ? 'h-[88px] gap-2' : livePage ? 'min-h-[148px] gap-4' : 'h-[140px] w-[790px] max-w-full gap-3',
         className
       )}
     >
@@ -81,12 +81,12 @@ function PulseAnimationCard({
   embedded: boolean;
   livePage: boolean;
 }) {
-  const viewportHeight = embedded ? 76 : livePage ? 104 : 104;
-  const frameHeight = embedded ? 100 : 132;
+  const viewportHeight = embedded ? 60 : livePage ? 100 : 96;
+  const frameHeight = embedded ? 94 : 132;
   const frameWidth = embedded ? 245 : 360;
-  const frameScale = embedded ? 0.74 : livePage ? 0.86 : 0.86;
-  const frameTranslateX = embedded ? -30 : -34;
-  const frameTranslateY = embedded ? -12 : -12;
+  const frameScale = embedded ? 0.68 : livePage ? 0.86 : 0.84;
+  const frameTranslateX = embedded ? -34 : -34;
+  const frameTranslateY = embedded ? -13 : -13;
 
   return (
     <article
@@ -149,7 +149,7 @@ function PulseAnimationCard({
         <div
           className={cn(
             'flex items-center justify-center rounded-xl border border-dashed border-white/15 bg-black/30 text-center text-white/45',
-            embedded ? 'h-[76px] px-2 text-[9px]' : 'h-[104px] px-4 text-xs'
+            embedded ? 'h-[60px] px-2 text-[9px]' : 'h-[96px] px-4 text-xs'
           )}
         >
           <div>
