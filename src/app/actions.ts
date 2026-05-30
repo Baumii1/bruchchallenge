@@ -19,8 +19,10 @@ import {
   setDataEditOverallNote,
   setDataDeleteOverallNote,
   setDataCreateNewChallenge,
+  setDataRecordGameMatchResult,
 } from '@/lib/data';
 import type { Challenge, Game } from '@/types';
+import type { GameMatchResult } from '@/types';
 import { ensureViewerFirebaseSession, getFirebaseAuthClient, getFirebaseDb, isAdminEmail, isFirebaseConfigured } from '@/lib/firebase-client';
 
 interface ChallengeFormValues {
@@ -47,6 +49,13 @@ interface ChallengeEditorGameValues {
   enableManualLog?: boolean;
   result?: string | null;
   status?: Game['status'];
+  attempts?: string[];
+  wins?: number | null;
+  losses?: number | null;
+  draws?: number | null;
+  requiredWinStreak?: number | null;
+  currentWinStreak?: number | null;
+  bestWinStreak?: number | null;
 }
 
 interface ChallengeEditorValues {
@@ -372,6 +381,14 @@ export async function updateChallengeAction(challengeId: string, data: Challenge
       enableManualLog: Boolean(game.enableManualLog),
       result: normalizeOptionalText(game.result),
       status: game.status ?? baseGame.status ?? 'pending',
+      attempts: (game.attempts ?? baseGame.attempts ?? []).map((attempt) => attempt.trim()).filter(Boolean),
+      wins: game.wins ?? baseGame.wins ?? 0,
+      losses: game.losses ?? baseGame.losses ?? 0,
+      draws: game.draws ?? baseGame.draws ?? 0,
+      requiredWinStreak: game.requiredWinStreak ?? baseGame.requiredWinStreak,
+      currentWinStreak: game.currentWinStreak ?? baseGame.currentWinStreak ?? 0,
+      bestWinStreak: game.bestWinStreak ?? baseGame.bestWinStreak ?? 0,
+      matchLog: baseGame.matchLog ?? [],
     };
   });
 
@@ -430,6 +447,22 @@ export async function toggleGameTimerAction(challengeId: string, gameId: string)
 export async function updateGameProgressAction(challengeId: string, gameId: string, change: number, note?: string): Promise<Challenge | null> {
   requireAdminSession();
   const updatedChallenge = setDataUpdateGameProgress(challengeId, gameId, change, note);
+  if (updatedChallenge) {
+    await persistChallengesSnapshot();
+    revalidateAllRelevantPaths(challengeId);
+    return updatedChallenge;
+  }
+  return null;
+}
+
+export async function recordGameMatchResultAction(
+  challengeId: string,
+  gameId: string,
+  result: GameMatchResult,
+  note?: string
+): Promise<Challenge | null> {
+  requireAdminSession();
+  const updatedChallenge = setDataRecordGameMatchResult(challengeId, gameId, result, note);
   if (updatedChallenge) {
     await persistChallengesSnapshot();
     revalidateAllRelevantPaths(challengeId);

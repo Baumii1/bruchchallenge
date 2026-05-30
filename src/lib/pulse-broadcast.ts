@@ -1,12 +1,14 @@
 import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase-client';
 
+export type BroadcastPulseSource = 'hyperate' | 'manual' | 'bridge' | 'json-endpoint';
+
 export interface BroadcastPulseEntry {
   id: string;
   name: string;
   bpm: number | null;
   status: 'ok' | 'missing' | 'error';
-  source: 'pulsoid';
+  source: BroadcastPulseSource;
   updatedAt: number;
   measuredAt: number | null;
   message?: string;
@@ -26,13 +28,19 @@ const getPulseBroadcastDoc = () => {
   return doc(db, COLLECTION_ID, DOC_ID);
 };
 
+const normalizeSource = (source: unknown): BroadcastPulseSource => {
+  return source === 'manual' || source === 'bridge' || source === 'json-endpoint' || source === 'hyperate'
+    ? source
+    : 'bridge';
+};
+
 const sanitizeEntry = (entry: BroadcastPulseEntry): BroadcastPulseEntry => {
   const sanitized: BroadcastPulseEntry = {
     id: entry.id,
     name: entry.name,
     bpm: entry.bpm,
     status: entry.status,
-    source: entry.source,
+    source: normalizeSource(entry.source),
     updatedAt: entry.updatedAt,
     measuredAt: entry.measuredAt,
   };
@@ -57,9 +65,9 @@ const coerceEntry = (fallbackId: string, rawEntry: unknown): BroadcastPulseEntry
   return sanitizeEntry({
     id: typeof entry.id === 'string' && entry.id ? entry.id : fallbackId,
     name: typeof entry.name === 'string' && entry.name ? entry.name : fallbackId,
-    bpm: typeof entry.bpm === 'number' && Number.isFinite(entry.bpm) ? entry.bpm : null,
+    bpm: typeof entry.bpm === 'number' && Number.isFinite(entry.bpm) ? Math.round(entry.bpm) : null,
     status,
-    source: 'pulsoid',
+    source: normalizeSource(entry.source),
     updatedAt: typeof entry.updatedAt === 'number' && Number.isFinite(entry.updatedAt) ? entry.updatedAt : Date.now(),
     measuredAt: typeof entry.measuredAt === 'number' && Number.isFinite(entry.measuredAt) ? entry.measuredAt : null,
     message: typeof entry.message === 'string' ? entry.message : undefined,
@@ -207,7 +215,7 @@ export const clearPulseBroadcastEntry = async (playerId: string): Promise<void> 
     name: existingEntries[playerId]?.name ?? playerId,
     bpm: null,
     status: 'missing',
-    source: 'pulsoid',
+    source: 'manual',
     updatedAt: Date.now(),
     measuredAt: null,
     message: 'Publisher disconnected.',

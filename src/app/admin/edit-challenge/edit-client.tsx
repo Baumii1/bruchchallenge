@@ -24,6 +24,13 @@ interface EditableGameFormState {
   status: Game['status'];
   enableTryCounter: boolean;
   enableManualLog: boolean;
+  attempts: string;
+  wins: string;
+  losses: string;
+  draws: string;
+  requiredWinStreak: string;
+  currentWinStreak: string;
+  bestWinStreak: string;
 }
 
 interface ChallengeEditorFormState {
@@ -46,6 +53,13 @@ const emptyGame = (): EditableGameFormState => ({
   status: 'pending',
   enableTryCounter: false,
   enableManualLog: false,
+  attempts: '',
+  wins: '0',
+  losses: '0',
+  draws: '0',
+  requiredWinStreak: '',
+  currentWinStreak: '0',
+  bestWinStreak: '0',
 });
 
 const toDateTimeLocalValue = (value?: string, fallbackDate?: string): string => {
@@ -81,6 +95,13 @@ const mapChallengeToFormState = (challenge: Challenge): ChallengeEditorFormState
     status: game.status ?? 'pending',
     enableTryCounter: Boolean(game.enableTryCounter),
     enableManualLog: Boolean(game.enableManualLog),
+    attempts: (game.attempts ?? []).join('\n'),
+    wins: game.wins !== undefined && game.wins !== null ? String(game.wins) : '0',
+    losses: game.losses !== undefined && game.losses !== null ? String(game.losses) : '0',
+    draws: game.draws !== undefined && game.draws !== null ? String(game.draws) : '0',
+    requiredWinStreak: game.requiredWinStreak !== undefined && game.requiredWinStreak !== null ? String(game.requiredWinStreak) : '',
+    currentWinStreak: game.currentWinStreak !== undefined && game.currentWinStreak !== null ? String(game.currentWinStreak) : '0',
+    bestWinStreak: game.bestWinStreak !== undefined && game.bestWinStreak !== null ? String(game.bestWinStreak) : '0',
   })),
 });
 
@@ -194,6 +215,13 @@ export default function EditChallengeClientPage() {
             status: game.status,
             enableTryCounter: game.enableTryCounter,
             enableManualLog: game.enableManualLog,
+            attempts: game.attempts.split('\n').map((attempt) => attempt.trim()).filter(Boolean),
+            wins: game.wins.trim() === '' ? 0 : Number(game.wins),
+            losses: game.losses.trim() === '' ? 0 : Number(game.losses),
+            draws: game.draws.trim() === '' ? 0 : Number(game.draws),
+            requiredWinStreak: game.requiredWinStreak.trim() === '' ? null : Number(game.requiredWinStreak),
+            currentWinStreak: game.currentWinStreak.trim() === '' ? 0 : Number(game.currentWinStreak),
+            bestWinStreak: game.bestWinStreak.trim() === '' ? 0 : Number(game.bestWinStreak),
           })),
         });
 
@@ -326,6 +354,38 @@ export default function EditChallengeClientPage() {
                   <div className="space-y-2">
                     <Label>Result</Label>
                     <Input value={game.result} onChange={(event) => updateGameField(index, 'result', event.target.value)} />
+                  </div>
+                  <div className="grid gap-3 md:col-span-2 md:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label>Wins</Label>
+                      <Input type="number" min="0" value={game.wins} onChange={(event) => updateGameField(index, 'wins', event.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Losses</Label>
+                      <Input type="number" min="0" value={game.losses} onChange={(event) => updateGameField(index, 'losses', event.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Draws</Label>
+                      <Input type="number" min="0" value={game.draws} onChange={(event) => updateGameField(index, 'draws', event.target.value)} />
+                    </div>
+                  </div>
+                  <div className="grid gap-3 md:col-span-2 md:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label>Required Streak (b2b=2, b3b=3)</Label>
+                      <Input type="number" min="1" value={game.requiredWinStreak} onChange={(event) => updateGameField(index, 'requiredWinStreak', event.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Current Streak</Label>
+                      <Input type="number" min="0" value={game.currentWinStreak} onChange={(event) => updateGameField(index, 'currentWinStreak', event.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Best Streak</Label>
+                      <Input type="number" min="0" value={game.bestWinStreak} onChange={(event) => updateGameField(index, 'bestWinStreak', event.target.value)} />
+                    </div>
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Versuche / Win-Notes / Try-Notes (eine Zeile = ein Eintrag)</Label>
+                    <Textarea rows={5} value={game.attempts} onChange={(event) => updateGameField(index, 'attempts', event.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label>Status</Label>
