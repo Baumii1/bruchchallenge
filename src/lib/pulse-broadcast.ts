@@ -196,16 +196,23 @@ export const writePulseBroadcastEntry = async (entry: BroadcastPulseEntry): Prom
     return;
   }
 
-  await setDoc(
-    pulseDoc,
-    {
-      entries: {
-        [entry.id]: sanitizedEntry,
+  try {
+    await setDoc(
+      pulseDoc,
+      {
+        entries: {
+          [entry.id]: sanitizedEntry,
+        },
+        updatedAt: Date.now(),
       },
-      updatedAt: Date.now(),
-    },
-    { merge: true }
-  );
+      { merge: true }
+    );
+  } catch (error) {
+    console.warn(
+      'Pulse entry was saved locally, but Firestore sync failed. Check Firestore rules for bruchchallenge/pulse-broadcast.',
+      error
+    );
+  }
 };
 
 export const clearPulseBroadcastEntry = async (playerId: string): Promise<void> => {
@@ -233,16 +240,23 @@ export const clearPulseBroadcastEntry = async (playerId: string): Promise<void> 
     return;
   }
 
-  await setDoc(
-    pulseDoc,
-    {
-      entries: {
-        [playerId]: nextEntry,
+  try {
+    await setDoc(
+      pulseDoc,
+      {
+        entries: {
+          [playerId]: nextEntry,
+        },
+        updatedAt: Date.now(),
       },
-      updatedAt: Date.now(),
-    },
-    { merge: true }
-  );
+      { merge: true }
+    );
+  } catch (error) {
+    console.warn(
+      'Pulse disconnect state was saved locally, but Firestore sync failed. Check Firestore rules for bruchchallenge/pulse-broadcast.',
+      error
+    );
+  }
 };
 
 export const subscribePulseBroadcast = (listener: (entries: Record<string, BroadcastPulseEntry>) => void): (() => void) => {

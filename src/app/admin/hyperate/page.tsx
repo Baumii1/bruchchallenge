@@ -70,9 +70,17 @@ export default function HyperateAdminPage() {
         return;
       }
 
-      const savedLinks = await writeHyperateLinks(sanitizedLinks);
-      setLinks(savedLinks);
-      toast({ title: 'HypeRate-Links gespeichert', description: 'Das OBS-Pulse-Overlay aktualisiert sich automatisch.' });
+      try {
+        const savedLinks = await writeHyperateLinks(sanitizedLinks);
+        setLinks(savedLinks);
+        toast({ title: 'HypeRate-Links gespeichert', description: 'Das OBS-Pulse-Overlay aktualisiert sich automatisch.' });
+      } catch (error) {
+        toast({
+          title: 'Links nur lokal gespeichert',
+          description: error instanceof Error ? error.message : 'Firestore-Sync fehlgeschlagen. Prüfe die Firestore-Regeln.',
+          variant: 'destructive',
+        });
+      }
     });
   };
 
