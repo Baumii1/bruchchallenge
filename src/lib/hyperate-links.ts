@@ -150,7 +150,14 @@ export const writeHyperateLinks = async (links: HyperatePlayerLink[]): Promise<H
 
   const hyperateDoc = getHyperateDoc();
   if (hyperateDoc) {
-    await setDoc(hyperateDoc, { links: normalizedLinks, updatedAt: now }, { merge: true });
+    try {
+      await setDoc(hyperateDoc, { links: normalizedLinks, updatedAt: now }, { merge: true });
+    } catch (error) {
+      console.warn(
+        'HypeRate links were saved locally, but Firestore sync failed. Check Firestore rules for bruchchallenge/hyperate-links.',
+        error
+      );
+    }
   }
 
   return normalizedLinks;
