@@ -538,55 +538,6 @@ const handleServerAction = async (
 
       {isChallengeActuallyLive && (
       <section>
-        <Card className="mb-6 border-primary/30 bg-gradient-to-r from-primary/10 via-card to-destructive/10 shadow-md">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-xl flex items-center gap-2">
-              <HeartPulse className="h-5 w-5 text-destructive animate-pulse" />
-              Live Pulse Feed
-            </CardTitle>
-            <CardDescription>
-              Live-Herzfrequenz pro Spieler. Die Quellen werden über NEXT_PUBLIC_PULSE_PLAYERS konfiguriert.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {pulsePlayers.length === 0 ? (
-              <div className="rounded-lg border bg-card/80 p-4 text-sm text-muted-foreground">
-                Keine Pulse-Quellen konfiguriert. Siehe docs/PULSE_SETUP.md.
-              </div>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {pulsePlayers.map((player) => {
-                  const reading = pulseReadings.find((entry) => entry.id === player.id);
-                  const state = reading?.status ?? 'missing';
-
-                  return (
-                    <div key={player.id} className="rounded-lg border bg-card/80 p-4 shadow-sm">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-xs uppercase tracking-wide text-muted-foreground">{player.name}</p>
-                          <p className="mt-2 flex items-center gap-2 text-3xl font-bold tabular-nums text-destructive">
-                            <HeartPulse className="h-6 w-6" />
-                            {reading?.bpm ?? '--'}
-                          </p>
-                        </div>
-                        <Badge variant={state === 'ok' ? 'default' : state === 'error' ? 'destructive' : 'secondary'}>
-                          {state}
-                        </Badge>
-                      </div>
-                      <p className="mt-3 text-xs text-muted-foreground">
-                        {reading ? formatPulseAge(reading.updatedAt) : 'waiting'}
-                      </p>
-                      {reading?.message && (
-                        <p className="mt-2 text-xs text-muted-foreground break-words">{reading.message}</p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
         <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl md:text-3xl font-semibold flex items-center gap-2">
                 <ListFilter className="h-7 w-7 text-primary"/> Game Dashboard
