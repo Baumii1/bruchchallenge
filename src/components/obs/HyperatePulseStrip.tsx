@@ -61,7 +61,7 @@ export function HyperatePulseStrip({ className, embedded = false, livePage = fal
       className={cn(
         !livePage && 'obs-browser-source',
         'grid grid-cols-2 overflow-hidden text-white [scrollbar-width:none]',
-        embedded ? 'h-[88px] gap-2' : livePage ? 'min-h-[148px] gap-4' : 'h-[140px] w-[790px] max-w-full gap-3',
+        embedded ? 'mt-2 h-[88px] gap-2' : livePage ? 'min-h-[148px] gap-4' : 'h-[140px] w-[790px] max-w-full gap-3',
         className
       )}
     >
