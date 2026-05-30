@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, signInAnonymously, type Auth } from 'firebase/auth';
+import { browserLocalPersistence, getAuth, onAuthStateChanged, setPersistence, signInAnonymously, type Auth } from 'firebase/auth';
 import { getFirestore, initializeFirestore, type Firestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -20,6 +20,43 @@ let cachedApp: FirebaseApp | null | undefined;
 let cachedAuth: Auth | null | undefined;
 let cachedDb: Firestore | null | undefined;
 let viewerSessionPromise: Promise<void> | null = null;
+let authPersistencePromise: Promise<void> | null = null;
+let initialAuthStatePromise: Promise<void> | null = null;
+
+const ensureAuthPersistence = async (auth: Auth): Promise<void> => {
+  if (!authPersistencePromise) {
+    authPersistencePromise = setPersistence(auth, browserLocalPersistence).catch((error) => {
+      console.warn('Could not enforce Firebase local auth persistence.', error);
+    });
+  }
+
+  await authPersistencePromise;
+};
+
+const waitForInitialAuthState = async (auth: Auth): Promise<void> => {
+  if (auth.currentUser) {
+    return;
+  }
+
+  if (!initialAuthStatePromise) {
+    initialAuthStatePromise = new Promise<void>((resolve) => {
+      const unsubscribe = onAuthStateChanged(
+        auth,
+        () => {
+          unsubscribe();
+          resolve();
+        },
+        () => {
+          unsubscribe();
+          resolve();
+        }
+      );
+    });
+  }
+
+  await initialAuthStatePromise;
+};
+
 
 export const isFirebaseConfigured = (): boolean => hasFirebaseConfig;
 
@@ -44,6 +81,9 @@ export const getFirebaseAuthClient = (): Auth | null => {
 
   const app = getFirebaseApp();
   cachedAuth = app ? getAuth(app) : null;
+  if (cachedAuth && typeof window !== 'undefined') {
+    void ensureAuthPersistence(cachedAuth);
+  }
   return cachedAuth;
 };
 
@@ -56,6 +96,9 @@ export const ensureViewerFirebaseSession = async (): Promise<void> => {
   if (!auth) {
     return;
   }
+
+  await ensureAuthPersistence(auth);
+  await waitForInitialAuthState(auth);
 
   if (auth.currentUser) {
     return;

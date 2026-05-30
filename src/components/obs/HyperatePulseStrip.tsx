@@ -41,7 +41,7 @@ export function HyperatePulseStrip({ className, embedded = false }: HyperatePuls
   return (
     <div
       className={cn(
-        'grid grid-cols-2 gap-2 text-white',
+        'grid grid-cols-2 gap-2 overflow-hidden text-white obs-browser-source',
         embedded ? 'h-[82px]' : 'h-[138px] w-[760px] max-w-full',
         className
       )}
@@ -57,7 +57,7 @@ function PulseAnimationCard({ entry, embedded }: { entry: HyperatePlayerLink; em
   return (
     <article
       className={cn(
-        'relative isolate overflow-hidden rounded-2xl border border-white/10 bg-black/45 shadow-lg backdrop-blur',
+        'relative isolate overflow-hidden rounded-2xl border border-white/10 bg-black/45 shadow-lg backdrop-blur [scrollbar-width:none]',
         embedded ? 'px-2 py-1.5' : 'px-3 py-2.5'
       )}
     >
@@ -78,9 +78,12 @@ function PulseAnimationCard({ entry, embedded }: { entry: HyperatePlayerLink; em
         <iframe
           title={`${entry.name} HypeRate animation`}
           src={entry.url}
-          className={cn('w-full rounded-xl border-0 bg-transparent', embedded ? 'h-[52px]' : 'h-[92px]')}
+          className={cn('hyperate-frame w-full overflow-hidden rounded-xl border-0 bg-transparent', embedded ? 'h-[52px]' : 'h-[92px]')}
           allow="autoplay; clipboard-read; clipboard-write; encrypted-media"
           referrerPolicy="no-referrer-when-downgrade"
+          scrolling="no"
+          data-hyperate-frame="true"
+          style={{ background: 'transparent', colorScheme: 'dark' }}
         />
       ) : (
         <div className={cn('flex items-center justify-center rounded-xl border border-dashed border-white/15 bg-black/30 text-center text-white/45', embedded ? 'h-[52px] px-2 text-[9px]' : 'h-[92px] px-4 text-xs')}>

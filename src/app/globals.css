@@ -94,3 +94,30 @@
     @apply tracking-tight;
   }
 }
+
+
+/* OBS browser-source surfaces must never show scrollbars. */
+body:has(.obs-browser-source),
+body:has(.obs-browser-source) html {
+  overflow: hidden !important;
+  background: transparent !important;
+}
+
+.obs-browser-source,
+.obs-browser-source * {
+  scrollbar-width: none;
+}
+
+.obs-browser-source::-webkit-scrollbar,
+.obs-browser-source *::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+.hyperate-frame {
+  display: block;
+  overflow: hidden;
+  background: transparent;
+  color-scheme: dark;
+}
