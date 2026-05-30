@@ -6,8 +6,10 @@ import {
     startChallengeAction,
     toggleChallengeTimerAction,
     toggleGameTimerAction,
-    updateGameProgressAction,
-    logGameTryAction,
+    logGameOutcomeAction,
+    setGameScoreAction,
+    markGameCompleteAction,
+    deleteGameLogEntryAction,
     endChallengeAction,
     resetChallengeAction,
     fetchLivePageDataAction,
@@ -20,9 +22,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { GameIconFactory } from '@/components/icons/GameIconFactory';
+import { GameLog } from '@/components/GameLog';
+import { computeGameStats, getEffectiveTrackingType, formatScoreValue } from '@/lib/game-logging';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { RefreshCw, PlayCircle, PauseCircle, Settings2, RadioTower, ChevronUp, Trophy, StopCircle, ListFilter, RotateCcw, Loader2, MessageSquarePlus, NotepadText, Edit3, Trash2, Check, X, HeartPulse, ChevronsUpDown } from 'lucide-react';
+import { RefreshCw, PlayCircle, PauseCircle, Settings2, RadioTower, ChevronUp, ChevronDown, Minus, Plus, Save, Trophy, StopCircle, ListFilter, RotateCcw, Loader2, MessageSquarePlus, NotepadText, Edit3, Trash2, Check, X, HeartPulse, Target } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -296,32 +300,64 @@ const handleServerAction = async (
     }
   };
 
-  const handleUpdateProgress = (gameId: string) => {
-    if (liveChallenge && liveChallenge.status === 'live') {
-      const gameName = liveChallenge.games.find(g => g.id === gameId)?.name || "Game";
-      const note = manualLogNotes[gameId] || "";
-      handleServerAction(
-        () => updateGameProgressAction(liveChallenge.id, gameId, 1, note),
-        `Progress updated for ${gameName}`,
-        "Failed to update progress",
-        { refetchOnSuccess: true, optimisticUpdate: true }
-      );
-      setManualLogNotes(prev => ({...prev, [gameId]: ''}));
-    }
+  const handleLogOutcome = (gameId: string, kind: 'win' | 'loss' | 'draw' | 'attempt') => {
+    if (!liveChallenge || liveChallenge.status !== 'live') return;
+    const game = liveChallenge.games.find(g => g.id === gameId);
+    const value = (manualLogNotes[gameId] || '').trim();
+    // For round games the contextual field is a score; otherwise it is a note.
+    const type = game ? getEffectiveTrackingType(game) : 'attempts';
+    const payload = type === 'winLossDraw'
+      ? (value ? { score: value } : undefined)
+      : (value ? { note: value } : undefined);
+    const label = kind === 'win' ? (game?.winLabel || 'Sieg') : kind === 'loss' ? 'Niederlage' : kind === 'draw' ? 'Remis' : (game?.attemptLabel || 'Versuch');
+    handleServerAction(
+      () => logGameOutcomeAction(liveChallenge.id, gameId, kind, payload),
+      `${label} geloggt – ${game?.name ?? 'Game'}`,
+      'Loggen fehlgeschlagen',
+      { refetchOnSuccess: true, optimisticUpdate: true }
+    );
+    setManualLogNotes(prev => ({ ...prev, [gameId]: '' }));
   };
 
-  const handleLogTry = (gameId: string) => {
-    if (liveChallenge && liveChallenge.status === 'live') {
-      const gameName = liveChallenge.games.find(g => g.id === gameId)?.name || "Game";
-      const note = manualLogNotes[gameId] || "";
-      handleServerAction(
-        () => logGameTryAction(liveChallenge.id, gameId, note),
-        `Attempt logged for ${gameName}`,
-        "Failed to log attempt",
-        { refetchOnSuccess: true, optimisticUpdate: true }
-      );
-      setManualLogNotes(prev => ({...prev, [gameId]: ''}));
+  const handleSetScore = (gameId: string) => {
+    if (!liveChallenge || liveChallenge.status !== 'live') return;
+    const game = liveChallenge.games.find(g => g.id === gameId);
+    const raw = (manualLogNotes[gameId] || '').trim().replace(/\.(?=\d{3}\b)/g, '').replace(',', '.').replace(/[^\d.-]/g, '');
+    const score = Number(raw);
+    if (!raw || Number.isNaN(score)) {
+      toast({ title: 'Score fehlt', description: 'Bitte einen gültigen Zahlenwert eingeben.', variant: 'destructive' });
+      return;
     }
+    handleServerAction(
+      () => setGameScoreAction(liveChallenge.id, gameId, score),
+      `Score ${formatScoreValue(score, game?.scoreUnit)} eingetragen – ${game?.name ?? 'Game'}`,
+      'Score konnte nicht gespeichert werden',
+      { refetchOnSuccess: true, optimisticUpdate: true }
+    );
+    setManualLogNotes(prev => ({ ...prev, [gameId]: '' }));
+  };
+
+  const handleMarkComplete = (gameId: string) => {
+    if (!liveChallenge || liveChallenge.status !== 'live') return;
+    const game = liveChallenge.games.find(g => g.id === gameId);
+    const note = (manualLogNotes[gameId] || '').trim() || undefined;
+    handleServerAction(
+      () => markGameCompleteAction(liveChallenge.id, gameId, note),
+      `Abgeschlossen – ${game?.name ?? 'Game'}`,
+      'Konnte nicht abgeschlossen werden',
+      { refetchOnSuccess: true, optimisticUpdate: true }
+    );
+    setManualLogNotes(prev => ({ ...prev, [gameId]: '' }));
+  };
+
+  const handleDeleteLogEntry = (gameId: string, entryId: string) => {
+    if (!liveChallenge || liveChallenge.status !== 'live') return;
+    handleServerAction(
+      () => deleteGameLogEntryAction(liveChallenge.id, gameId, entryId),
+      'Eintrag entfernt',
+      'Eintrag konnte nicht entfernt werden',
+      { refetchOnSuccess: true, optimisticUpdate: true }
+    );
   };
 
   const handleAddOverallNoteInternal = () => {
@@ -597,12 +633,31 @@ const handleServerAction = async (
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {liveChallenge.games.map((game) => {
-            const progressPercentage = (game.currentProgress !== undefined && game.targetProgress && game.targetProgress > 0)
-              ? Math.min(100, (game.currentProgress / game.targetProgress) * 100)
-              : 0;
+            const trackingType = getEffectiveTrackingType(game);
+            const stats = computeGameStats(game);
             const isGameActuallyCompleted = game.status === 'completed';
             const isGameVisuallyActive = game.isTimerActive === true && liveChallenge.activeGameId === game.id;
-            const attempts = game.attempts ?? [];
+            const logDisabled = isSubmitting || !liveChallenge.isChallengeTimerActive;
+            const contextValue = manualLogNotes[game.id] || '';
+            const contextPlaceholder =
+              game.scoreLabel ||
+              (trackingType === 'winLossDraw' ? 'Score (optional, z.B. 13:5)' :
+               trackingType === 'score' ? 'Erreichter Score' :
+               trackingType === 'completion' ? 'Zeit / Notiz (optional)' :
+               'Platzierung / Notiz (optional)');
+            const progressPercentage = (() => {
+              if (!stats.target || stats.target <= 0) return undefined;
+              if (trackingType === 'score') return Math.min(100, ((stats.best ?? 0) / stats.target) * 100);
+              if (game.backToBack) return stats.completed ? 100 : Math.min(100, (stats.currentStreak / stats.target) * 100);
+              if (trackingType === 'completion') return stats.completed ? 100 : 0;
+              return Math.min(100, (stats.wins / stats.target) * 100);
+            })();
+            const progressLabel = (() => {
+              if (!stats.target || stats.target <= 0) return null;
+              if (trackingType === 'score') return `${formatScoreValue(stats.best ?? 0, game.scoreUnit)} / ${formatScoreValue(stats.target, game.scoreUnit)}`;
+              if (game.backToBack) return `${stats.completed ? stats.target : stats.currentStreak} / ${stats.target} in Folge`;
+              return `${Math.min(stats.wins, stats.target)} / ${stats.target}`;
+            })();
 
             return (
               <Card key={game.id} className={cn("shadow-lg rounded-xl flex flex-col transition-all duration-300 border",
@@ -625,12 +680,15 @@ const handleServerAction = async (
                   <div className={cn("text-lg font-medium tabular-nums", isGameVisuallyActive && "text-accent font-bold")}>
                     Game Time: {displayTimers[game.id] || formatTime(game.accumulatedDuration || 0)}
                   </div>
-                  {game.targetProgress !== undefined && game.targetProgress !== null && (
+                  {progressPercentage !== undefined && (
                     <div>
                       <div className="flex justify-between text-sm mb-1">
-                        <span className="text-muted-foreground">Progress</span>
-                        <span className={cn("font-semibold", isGameActuallyCompleted ? "text-green-600" : isGameVisuallyActive ? "text-accent" : "text-foreground")}>
-                          {game.currentProgress || 0} / {game.targetProgress}
+                        <span className="text-muted-foreground flex items-center gap-1">
+                          {trackingType === 'score' ? <Target className="h-3.5 w-3.5" /> : null}
+                          {game.backToBack ? 'Serie' : trackingType === 'score' ? 'Score' : 'Fortschritt'}
+                        </span>
+                        <span className={cn("font-semibold tabular-nums", isGameActuallyCompleted ? "text-green-600" : isGameVisuallyActive ? "text-accent" : "text-foreground")}>
+                          {progressLabel}
                         </span>
                       </div>
                       <Progress value={progressPercentage} className="w-full h-2.5 rounded-full"
@@ -638,70 +696,85 @@ const handleServerAction = async (
                       />
                     </div>
                   )}
-                   {game.enableTryCounter && (
-                    <p className="text-sm text-muted-foreground">
-                      Attempts: <span className="font-semibold text-foreground">{game.tryCount || 0}</span>
-                    </p>
-                  )}
-                  {(attempts.length > 0 || game.enableTryCounter) && (
-                    <details className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
-                      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-medium text-foreground">
-                        <span>Attempts & Logs ({attempts.length})</span>
-                        <ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
-                      </summary>
-                      <div className="mt-3 space-y-2">
-                        {attempts.length > 0 ? (
-                          <ul className="space-y-2 text-muted-foreground">
-                            {attempts.map((attempt, index) => (
-                              <li key={`${game.id}-attempt-${index}`} className="rounded border bg-background/80 px-2 py-1 whitespace-pre-wrap break-words">
-                                {attempt}
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="text-muted-foreground">Noch keine Attempts oder Logs vorhanden.</p>
-                        )}
-                      </div>
-                    </details>
-                  )}
+                  <GameLog
+                    game={game}
+                    onDeleteEntry={isAdmin && isChallengeActuallyLive ? (entryId) => handleDeleteLogEntry(game.id, entryId) : undefined}
+                    disabled={isSubmitting}
+                  />
                 </CardContent>
                 {isAdmin && isChallengeActuallyLive && !isGameActuallyCompleted && (
                     <CardFooter className="px-5 pb-5 pt-0 border-t mt-auto">
                         <div className="flex flex-col gap-3 pt-4 w-full">
-                            {game.enableManualLog && (
-                                <Input
-                                    type="text"
-                                    placeholder="Log note (e.g., Win 13:3, 5th place)"
-                                    value={manualLogNotes[game.id] || ''}
-                                    onChange={(e) => setManualLogNotes(prev => ({...prev, [game.id]: e.target.value}))}
-                                    className="text-sm"
-                                    disabled={isSubmitting || !liveChallenge.isChallengeTimerActive }
-                                />
-                            )}
-                            <div className="flex flex-wrap gap-2 w-full">
-                                <Button
-                                    onClick={() => handleToggleGameActive(game.id)}
-                                    variant="outline"
-                                    size="sm"
-                                    className="flex-1 shadow-sm"
-                                    disabled={isSubmitting || !liveChallenge.isChallengeTimerActive }
-                                >
-                                    {isSubmitting && liveChallenge.activeGameId === game.id && isGameVisuallyActive ? <Loader2 className="h-4 w-4 animate-spin" /> : isGameVisuallyActive ? <PauseCircle className="mr-2 h-4 w-4 text-red-500" /> : <PlayCircle className="mr-2 h-4 w-4 text-green-500" />}
-                                    {isSubmitting && liveChallenge.activeGameId === game.id && isGameVisuallyActive ? "Pausing..." :
-                                    isSubmitting && liveChallenge.activeGameId === game.id && !isGameVisuallyActive ? "Starting..." :
-                                    isSubmitting && liveChallenge.activeGameId !== game.id ? "Switching..." :
-                                    (isGameVisuallyActive ? 'Pause Game' :
-                                    (liveChallenge.activeGameId && liveChallenge.activeGameId !== game.id ? 'Switch to This' : 'Start Game'))}
-                                </Button>
-                                { (game.targetProgress !== undefined && game.targetProgress !== null || (game.enableManualLog && (game.targetProgress === undefined || game.targetProgress === null) )) && (
-                                    <Button onClick={() => handleUpdateProgress(game.id)} variant="outline" size="sm" disabled={isSubmitting || !isGameVisuallyActive || !liveChallenge.isChallengeTimerActive} className="shadow-sm">
-                                        <ChevronUp className="mr-1 h-4 w-4 text-green-500" /> Win/Incr.
-                                    </Button>
+                            <Button
+                                onClick={() => handleToggleGameActive(game.id)}
+                                variant="outline"
+                                size="sm"
+                                className="w-full shadow-sm"
+                                disabled={isSubmitting || !liveChallenge.isChallengeTimerActive}
+                            >
+                                {isGameVisuallyActive ? <PauseCircle className="mr-2 h-4 w-4 text-red-500" /> : <PlayCircle className="mr-2 h-4 w-4 text-green-500" />}
+                                {isGameVisuallyActive ? 'Spiel-Timer pausieren'
+                                  : (liveChallenge.activeGameId && liveChallenge.activeGameId !== game.id ? 'Timer hierher wechseln' : 'Spiel-Timer starten')}
+                            </Button>
+
+                            <Input
+                                type="text"
+                                inputMode={trackingType === 'score' ? 'numeric' : 'text'}
+                                placeholder={contextPlaceholder}
+                                value={contextValue}
+                                onChange={(e) => setManualLogNotes(prev => ({ ...prev, [game.id]: e.target.value }))}
+                                className="text-sm"
+                                disabled={logDisabled}
+                            />
+
+                            <div className="grid grid-cols-2 gap-2">
+                                {trackingType === 'winLossDraw' && (
+                                    <>
+                                        <Button onClick={() => handleLogOutcome(game.id, 'win')} size="sm" disabled={logDisabled} className="bg-green-600 hover:bg-green-700 text-white shadow-sm">
+                                            <ChevronUp className="mr-1 h-4 w-4" /> {game.winLabel || 'Sieg'}
+                                        </Button>
+                                        <Button onClick={() => handleLogOutcome(game.id, 'loss')} size="sm" variant="destructive" disabled={logDisabled} className="shadow-sm">
+                                            <ChevronDown className="mr-1 h-4 w-4" /> Niederlage
+                                        </Button>
+                                        {game.allowDraw && (
+                                            <Button onClick={() => handleLogOutcome(game.id, 'draw')} size="sm" disabled={logDisabled} className="col-span-2 bg-amber-500 hover:bg-amber-600 text-white shadow-sm">
+                                                <Minus className="mr-1 h-4 w-4" /> Remis
+                                            </Button>
+                                        )}
+                                    </>
                                 )}
-                                {game.enableTryCounter && (
-                                    <Button onClick={() => handleLogTry(game.id)} variant="outline" size="sm" disabled={isSubmitting || !liveChallenge.isChallengeTimerActive } className="shadow-sm">
-                                        <MessageSquarePlus className="mr-1 h-4 w-4 text-blue-500" /> Log Attempt
-                                    </Button>
+
+                                {trackingType === 'attempts' && (
+                                    <>
+                                        <Button onClick={() => handleLogOutcome(game.id, 'win')} size="sm" disabled={logDisabled} className="bg-green-600 hover:bg-green-700 text-white shadow-sm">
+                                            <Trophy className="mr-1 h-4 w-4" /> {game.winLabel || 'Sieg'}
+                                        </Button>
+                                        <Button onClick={() => handleLogOutcome(game.id, 'attempt')} size="sm" variant="outline" disabled={logDisabled} className="shadow-sm">
+                                            <Plus className="mr-1 h-4 w-4 text-blue-500" /> {game.attemptLabel || 'Versuch'}
+                                        </Button>
+                                    </>
+                                )}
+
+                                {trackingType === 'score' && (
+                                    <>
+                                        <Button onClick={() => handleSetScore(game.id)} size="sm" disabled={logDisabled} className="bg-green-600 hover:bg-green-700 text-white shadow-sm">
+                                            <Save className="mr-1 h-4 w-4" /> Score eintragen
+                                        </Button>
+                                        <Button onClick={() => handleLogOutcome(game.id, 'attempt')} size="sm" variant="outline" disabled={logDisabled} className="shadow-sm">
+                                            <Plus className="mr-1 h-4 w-4 text-blue-500" /> {game.attemptLabel || 'Versuch'} +1
+                                        </Button>
+                                    </>
+                                )}
+
+                                {trackingType === 'completion' && (
+                                    <>
+                                        <Button onClick={() => handleMarkComplete(game.id)} size="sm" disabled={logDisabled} className="bg-green-600 hover:bg-green-700 text-white shadow-sm">
+                                            <Trophy className="mr-1 h-4 w-4" /> {game.winLabel || 'Geschafft'}
+                                        </Button>
+                                        <Button onClick={() => handleLogOutcome(game.id, 'attempt')} size="sm" variant="outline" disabled={logDisabled} className="shadow-sm">
+                                            <Plus className="mr-1 h-4 w-4 text-blue-500" /> {game.attemptLabel || 'Versuch'}
+                                        </Button>
+                                    </>
                                 )}
                             </div>
                         </div>

@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import type { Challenge, Game } from '@/types';
+import type { Challenge, Game, GameTrackingType } from '@/types';
 
 interface EditableGameFormState {
   id?: string;
@@ -24,6 +24,12 @@ interface EditableGameFormState {
   status: Game['status'];
   enableTryCounter: boolean;
   enableManualLog: boolean;
+  trackingType: GameTrackingType;
+  allowDraw: boolean;
+  backToBack: boolean;
+  winLabel: string;
+  attemptLabel: string;
+  scoreLabel: string;
 }
 
 interface ChallengeEditorFormState {
@@ -45,7 +51,13 @@ const emptyGame = (): EditableGameFormState => ({
   result: '',
   status: 'pending',
   enableTryCounter: false,
-  enableManualLog: false,
+  enableManualLog: true,
+  trackingType: 'attempts',
+  allowDraw: false,
+  backToBack: false,
+  winLabel: '',
+  attemptLabel: '',
+  scoreLabel: '',
 });
 
 const toDateTimeLocalValue = (value?: string, fallbackDate?: string): string => {
@@ -81,6 +93,12 @@ const mapChallengeToFormState = (challenge: Challenge): ChallengeEditorFormState
     status: game.status ?? 'pending',
     enableTryCounter: Boolean(game.enableTryCounter),
     enableManualLog: Boolean(game.enableManualLog),
+    trackingType: game.trackingType ?? 'attempts',
+    allowDraw: Boolean(game.allowDraw),
+    backToBack: Boolean(game.backToBack),
+    winLabel: game.winLabel ?? '',
+    attemptLabel: game.attemptLabel ?? '',
+    scoreLabel: game.scoreLabel ?? '',
   })),
 });
 
@@ -194,6 +212,12 @@ export default function EditChallengeClientPage() {
             status: game.status,
             enableTryCounter: game.enableTryCounter,
             enableManualLog: game.enableManualLog,
+            trackingType: game.trackingType,
+            allowDraw: game.allowDraw,
+            backToBack: game.backToBack,
+            winLabel: game.winLabel,
+            attemptLabel: game.attemptLabel,
+            scoreLabel: game.scoreLabel,
           })),
         });
 
@@ -336,14 +360,42 @@ export default function EditChallengeClientPage() {
                       <option value="failed">failed</option>
                     </select>
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label>Logging-Modus</Label>
+                    <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={game.trackingType} onChange={(event) => updateGameField(index, 'trackingType', event.target.value as GameTrackingType)}>
+                      <option value="winLossDraw">Sieg / Niederlage / Remis</option>
+                      <option value="attempts">Versuche + Platzierung</option>
+                      <option value="score">Ziel-Score</option>
+                      <option value="completion">Completion / Zeit</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Label „Sieg" / „Versuch"</Label>
+                    <div className="flex gap-2">
+                      <Input value={game.winLabel} placeholder="Sieg" onChange={(event) => updateGameField(index, 'winLabel', event.target.value)} />
+                      <Input value={game.attemptLabel} placeholder="Versuch" onChange={(event) => updateGameField(index, 'attemptLabel', event.target.value)} />
+                    </div>
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Label Eingabefeld (Score / Notiz)</Label>
+                    <Input value={game.scoreLabel} placeholder="z.B. Score (13:5) oder Platz" onChange={(event) => updateGameField(index, 'scoreLabel', event.target.value)} />
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-2 md:col-span-2">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={game.allowDraw} onChange={(event) => updateGameField(index, 'allowDraw', event.target.checked)} />
+                      Remis-Button
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={game.backToBack} onChange={(event) => updateGameField(index, 'backToBack', event.target.checked)} />
+                      Back-to-Back (Serie)
+                    </label>
                     <label className="flex items-center gap-2 text-sm">
                       <input type="checkbox" checked={game.enableTryCounter} onChange={(event) => updateGameField(index, 'enableTryCounter', event.target.checked)} />
-                      Try Counter aktiv
+                      Try Counter
                     </label>
                     <label className="flex items-center gap-2 text-sm">
                       <input type="checkbox" checked={game.enableManualLog} onChange={(event) => updateGameField(index, 'enableManualLog', event.target.checked)} />
-                      Manual Log aktiv
+                      Manual Log
                     </label>
                   </div>
                 </CardContent>

@@ -15,12 +15,16 @@ import {
   getDataLiveChallengeDetails,
   getDataUpcomingChallenge,
   setDataLogGameTry,
+  setDataLogGameOutcome,
+  setDataSetGameScore,
+  setDataMarkGameComplete,
+  setDataDeleteGameLogEntry,
   setDataAddOverallNote,
   setDataEditOverallNote,
   setDataDeleteOverallNote,
   setDataCreateNewChallenge,
 } from '@/lib/data';
-import type { Challenge, Game } from '@/types';
+import type { Challenge, Game, GameLogKind, GameTrackingType } from '@/types';
 import { ensureViewerFirebaseSession, getFirebaseAuthClient, getFirebaseDb, isAdminEmail, isFirebaseConfigured } from '@/lib/firebase-client';
 
 interface ChallengeFormValues {
@@ -34,6 +38,14 @@ interface ChallengeFormValues {
     targetProgress?: number | null | undefined;
     enableTryCounter?: boolean;
     enableManualLog?: boolean;
+    presetId?: string;
+    trackingType?: GameTrackingType;
+    allowDraw?: boolean;
+    backToBack?: boolean;
+    scoreUnit?: string;
+    scoreLabel?: string;
+    attemptLabel?: string;
+    winLabel?: string;
   }>;
 }
 
@@ -47,6 +59,14 @@ interface ChallengeEditorGameValues {
   enableManualLog?: boolean;
   result?: string | null;
   status?: Game['status'];
+  presetId?: string;
+  trackingType?: GameTrackingType;
+  allowDraw?: boolean;
+  backToBack?: boolean;
+  scoreUnit?: string;
+  scoreLabel?: string;
+  attemptLabel?: string;
+  winLabel?: string;
 }
 
 interface ChallengeEditorValues {
@@ -372,6 +392,14 @@ export async function updateChallengeAction(challengeId: string, data: Challenge
       enableManualLog: Boolean(game.enableManualLog),
       result: normalizeOptionalText(game.result),
       status: game.status ?? baseGame.status ?? 'pending',
+      presetId: game.presetId ?? baseGame.presetId,
+      trackingType: game.trackingType ?? baseGame.trackingType,
+      allowDraw: game.allowDraw ?? baseGame.allowDraw ?? false,
+      backToBack: game.backToBack ?? baseGame.backToBack ?? false,
+      scoreUnit: normalizeOptionalText(game.scoreUnit) ?? baseGame.scoreUnit,
+      scoreLabel: normalizeOptionalText(game.scoreLabel) ?? baseGame.scoreLabel,
+      attemptLabel: normalizeOptionalText(game.attemptLabel) ?? baseGame.attemptLabel,
+      winLabel: normalizeOptionalText(game.winLabel) ?? baseGame.winLabel,
     };
   });
 
@@ -441,6 +469,56 @@ export async function updateGameProgressAction(challengeId: string, gameId: stri
 export async function logGameTryAction(challengeId: string, gameId: string, note?: string): Promise<Challenge | null> {
   requireAdminSession();
   const updatedChallenge = setDataLogGameTry(challengeId, gameId, note);
+  if (updatedChallenge) {
+    await persistChallengesSnapshot();
+    revalidateAllRelevantPaths(challengeId);
+    return updatedChallenge;
+  }
+  return null;
+}
+
+export async function logGameOutcomeAction(
+  challengeId: string,
+  gameId: string,
+  kind: GameLogKind,
+  payload?: { score?: string; note?: string }
+): Promise<Challenge | null> {
+  requireAdminSession();
+  if (kind === 'info') return null;
+  const updatedChallenge = setDataLogGameOutcome(challengeId, gameId, kind, payload);
+  if (updatedChallenge) {
+    await persistChallengesSnapshot();
+    revalidateAllRelevantPaths(challengeId);
+    return updatedChallenge;
+  }
+  return null;
+}
+
+export async function setGameScoreAction(challengeId: string, gameId: string, score: number, note?: string): Promise<Challenge | null> {
+  requireAdminSession();
+  const updatedChallenge = setDataSetGameScore(challengeId, gameId, score, note);
+  if (updatedChallenge) {
+    await persistChallengesSnapshot();
+    revalidateAllRelevantPaths(challengeId);
+    return updatedChallenge;
+  }
+  return null;
+}
+
+export async function markGameCompleteAction(challengeId: string, gameId: string, note?: string): Promise<Challenge | null> {
+  requireAdminSession();
+  const updatedChallenge = setDataMarkGameComplete(challengeId, gameId, note);
+  if (updatedChallenge) {
+    await persistChallengesSnapshot();
+    revalidateAllRelevantPaths(challengeId);
+    return updatedChallenge;
+  }
+  return null;
+}
+
+export async function deleteGameLogEntryAction(challengeId: string, gameId: string, entryId: string): Promise<Challenge | null> {
+  requireAdminSession();
+  const updatedChallenge = setDataDeleteGameLogEntry(challengeId, gameId, entryId);
   if (updatedChallenge) {
     await persistChallengesSnapshot();
     revalidateAllRelevantPaths(challengeId);
