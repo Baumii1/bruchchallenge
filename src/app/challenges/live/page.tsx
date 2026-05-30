@@ -45,6 +45,8 @@ import { useAuth } from '@/context/AuthContext';
 import { fetchAllPulseReadings, getPulsePlayers, type PulseReading } from '@/lib/pulse';
 import { subscribePulseBroadcast, type BroadcastPulseEntry } from '@/lib/pulse-broadcast';
 
+import { HyperatePulseStrip } from '@/components/obs/HyperatePulseStrip';
+
 const formatTime = (totalSeconds: number): string => {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -430,7 +432,19 @@ const handleServerAction = async (
 
   return (
     <div className="space-y-8">
-      <Card className={cn("shadow-2xl border-2 rounded-xl overflow-hidden",
+      
+      <section className="rounded-2xl border border-primary/20 bg-slate-950/80 p-4 shadow-xl">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-rose-200">Live Pulse</p>
+            <h2 className="text-xl font-bold text-white">Merlin & Patrick</h2>
+          </div>
+          <p className="text-xs text-muted-foreground">HypeRate Feed</p>
+        </div>
+        <HyperatePulseStrip livePage />
+      </section>
+
+<Card className={cn("shadow-2xl border-2 rounded-xl overflow-hidden",
         isChallengeActuallyLive ? "border-destructive" : isChallengeUpcoming ? "border-accent" : "border-primary"
       )}>
         <CardHeader className={cn("p-6",

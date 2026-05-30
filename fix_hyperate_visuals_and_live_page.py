@@ -1,4 +1,25 @@
-"use client";
+from pathlib import Path
+import re
+
+ROOT = Path.cwd()
+
+
+def read(path: str) -> str:
+    p = ROOT / path
+    if not p.exists():
+        raise FileNotFoundError(f"Missing expected file: {path}")
+    return p.read_text(encoding="utf-8")
+
+
+def write(path: str, content: str) -> None:
+    p = ROOT / path
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(content, encoding="utf-8")
+    print(f"patched {path}")
+
+
+# 1) Replace the HypeRate visual strip with a larger clipped viewport, dark-mode filter and no scrollbars.
+hyperate_component = '''"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { HeartPulse, Link2Off } from 'lucide-react';
@@ -161,3 +182,106 @@ function PulseAnimationCard({
     </article>
   );
 }
+'''
+write("src/components/obs/HyperatePulseStrip.tsx", hyperate_component)
+
+# 2) Ensure OBS CSS is hard no-scroll and iframe-friendly.
+path = "src/app/globals.css"
+text = read(path)
+css = '''
+
+/* OBS/HypeRate browser-source cleanup */
+html:has(.obs-browser-source),
+body:has(.obs-browser-source) {
+  overflow: hidden !important;
+  background: transparent !important;
+}
+
+.obs-browser-source,
+.obs-browser-source * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.obs-browser-source::-webkit-scrollbar,
+.obs-browser-source *::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+.hyperate-frame {
+  display: block;
+  overflow: hidden !important;
+  background: transparent !important;
+}
+'''
+if "OBS/HypeRate browser-source cleanup" not in text:
+    text += css
+write(path, text)
+
+# 3) Mark OBS pages as OBS browser source root and give the pulse strip more space.
+for page in ["src/app/obs/page.tsx", "src/app/obs/pulse/page.tsx"]:
+    p = ROOT / page
+    if not p.exists():
+        print(f"skipped missing {page}")
+        continue
+
+    text = read(page)
+    if "obs-browser-source" not in text:
+        text = text.replace('className="fixed inset-0', 'className="obs-browser-source fixed inset-0')
+        text = text.replace("className='fixed inset-0", "className='obs-browser-source fixed inset-0")
+
+    text = text.replace("const GAMES_PER_PAGE = 4;", "const GAMES_PER_PAGE = 3;")
+    text = text.replace("const GAMES_PER_PAGE = 5;", "const GAMES_PER_PAGE = 3;")
+    write(page, text)
+
+# 4) Put the same HypeRate panel into /challenges/live near the top.
+live_path = ROOT / "src/app/challenges/live/page.tsx"
+if live_path.exists():
+    text = read("src/app/challenges/live/page.tsx")
+
+    if "@/components/obs/HyperatePulseStrip" not in text:
+        import_line = "import { HyperatePulseStrip } from '@/components/obs/HyperatePulseStrip';\n"
+        last_import_match = list(re.finditer(r"^import .+?;\s*$", text, flags=re.M))
+        if last_import_match:
+            insert_at = last_import_match[-1].end()
+            text = text[:insert_at] + "\n" + import_line + text[insert_at:]
+        else:
+            text = import_line + text
+
+    panel = '''      <section className="rounded-2xl border border-primary/20 bg-slate-950/80 p-4 shadow-xl">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-rose-200">Live Pulse</p>
+            <h2 className="text-xl font-bold text-white">Merlin & Patrick</h2>
+          </div>
+          <p className="text-xs text-muted-foreground">HypeRate Feed</p>
+        </div>
+        <HyperatePulseStrip livePage />
+      </section>
+
+'''
+
+    if "<HyperatePulseStrip livePage" not in text:
+        pattern = re.compile(r'(return \(\s*<div className="[^"]*space-y-[^"]*">\s*)', re.S)
+        text, count = pattern.subn(r"\1\n" + panel, text, count=1)
+
+        if count == 0:
+            pattern = re.compile(r"(return \(\s*<div className='[^']*space-y-[^']*'>\s*)", re.S)
+            text, count = pattern.subn(r"\1\n" + panel, text, count=1)
+
+        if count == 0:
+            print("warning: Could not auto-insert live pulse panel into src/app/challenges/live/page.tsx. Import was added, component is ready.")
+        else:
+            print("inserted HypeRate panel into /challenges/live")
+
+    write("src/app/challenges/live/page.tsx", text)
+else:
+    print("skipped missing src/app/challenges/live/page.tsx")
+
+print()
+print("Done. Now run:")
+print("  Remove-Item -Recurse -Force .next")
+print("  npm run typecheck")
+print("  npm run build")
