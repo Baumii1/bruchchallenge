@@ -96,46 +96,24 @@
 }
 
 
-/* OBS browser-source surfaces must never show scrollbars. */
-body:has(.obs-browser-source),
-body:has(.obs-browser-source) html {
+/* OBS-only browser-source cleanup.
+   Do not target body via :has(.obs-browser-source), because /challenges/live embeds the pulse component too. */
+html:has(.obs-page-root),
+body:has(.obs-page-root) {
   overflow: hidden !important;
   background: transparent !important;
 }
 
-.obs-browser-source,
-.obs-browser-source * {
-  scrollbar-width: none;
-}
-
-.obs-browser-source::-webkit-scrollbar,
-.obs-browser-source *::-webkit-scrollbar {
-  width: 0 !important;
-  height: 0 !important;
-  display: none !important;
-}
-
-.hyperate-frame {
-  display: block;
-  overflow: hidden;
-  background: transparent;
-  color-scheme: dark;
-}
-
-
-/* OBS/HypeRate browser-source cleanup */
-html:has(.obs-browser-source),
-body:has(.obs-browser-source) {
-  overflow: hidden !important;
-  background: transparent !important;
-}
-
+.obs-page-root,
+.obs-page-root *,
 .obs-browser-source,
 .obs-browser-source * {
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
 }
 
+.obs-page-root::-webkit-scrollbar,
+.obs-page-root *::-webkit-scrollbar,
 .obs-browser-source::-webkit-scrollbar,
 .obs-browser-source *::-webkit-scrollbar {
   width: 0 !important;

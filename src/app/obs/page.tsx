@@ -11,7 +11,7 @@ const OBS_WIDTH = 360;
 const OBS_HEIGHT = 640;
 const REFRESH_INTERVAL_MS = 2000;
 const PAGE_INTERVAL_MS = 7000;
-const GAMES_PER_PAGE = 3;
+const GAMES_PER_PAGE = 4;
 const CHALLENGE_STORAGE_KEY = 'bruchchallenge:challenges:v1';
 
 const formatTime = (totalSeconds: number): string => {
@@ -210,7 +210,7 @@ function ObsChallengeOverlayPage() {
   const updatedSecondsAgo = lastUpdatedAt ? Math.max(0, Math.floor((now - lastUpdatedAt) / 1000)) : null;
 
   return (
-    <div className="obs-browser-source fixed inset-0 z-50 flex items-start justify-start bg-transparent text-white">
+    <div className="obs-page-root obs-browser-source fixed inset-0 z-50 flex items-start justify-start bg-transparent text-white">
       <section
         className="relative isolate overflow-hidden rounded-[28px] border border-white/10 bg-[#050812] shadow-2xl"
         style={{ width: OBS_WIDTH, height: OBS_HEIGHT }}
