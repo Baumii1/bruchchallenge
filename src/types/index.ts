@@ -9,6 +9,24 @@ export interface GameMatchLogEntry {
   winStreakAfter?: number;
 }
 
+// How a game records attempts / wins. Drives which log buttons appear and how
+// progress + completion are computed.
+//  - winLossDraw : round games (CS, Valorant, LoL). Tap Win / Loss / Draw, optional score.
+//  - attempts    : battle-royale / placement (Fall Guys, Fortnite, Bedwars). Tap Win or just Attempt, optional placement note.
+//  - score       : reach a target score over many quick tries (Higher Lower, WWM, GeoGuessr, Slither.io).
+//  - completion  : single time-based objective (Minecraft Speedrun, KTANE).
+export type GameTrackingType = 'winLossDraw' | 'attempts' | 'score' | 'completion';
+
+export type GameLogKind = 'win' | 'loss' | 'draw' | 'attempt' | 'info';
+
+export interface GameLogEntry {
+  id: string;
+  kind: GameLogKind;
+  score?: string; // freeform: "13:5", "27", "2. Platz"
+  note?: string;
+  at: number; // Date.now()
+}
+
 export interface Game {
   id: string;
   name: string;
@@ -18,7 +36,7 @@ export interface Game {
   currentProgress?: number;
   targetProgress?: number; // This should be optional if not a progress-based game
   result?: string; // e.g., "3/3", "1 Mio", "Completed"
-  attempts?: string[]; // Detailed attempts or notes for this game
+  attempts?: string[]; // Detailed attempts or notes for this game (legacy + human-readable mirror)
   timeTaken?: string; // For individual game timer (legacy, will be replaced by dynamic timing)
   wins?: number;
   losses?: number;
@@ -34,11 +52,23 @@ export interface Game {
   enableManualLog?: boolean;
   tryCount?: number;
 
-  // Win/streak tracking for b2b, b3b, etc.
+  // Win/streak tracking for b2b, b3b, etc. Legacy / compatibility model.
   requiredWinStreak?: number;
   currentWinStreak?: number;
   bestWinStreak?: number;
   matchLog?: GameMatchLogEntry[];
+
+  // --- Smart logging model (game presets) ---
+  presetId?: string; // which catalog preset this game was created from ('custom' for manual)
+  trackingType?: GameTrackingType; // how attempts/wins are recorded
+  allowDraw?: boolean; // winLossDraw: show a Draw button
+  backToBack?: boolean; // winLossDraw: objective is N consecutive wins (streak)
+  scoreUnit?: string; // score mode: "", "k", "pts"
+  scoreLabel?: string; // label for the score/placement input ("Score", "Punkte", "Platz")
+  attemptLabel?: string; // label for the neutral attempt button ("Versuch", "Runde", "Tod")
+  winLabel?: string; // label for the win button ("Sieg", "Victory Royale", "1. Platz")
+  bestScore?: number; // score mode: best score reached so far
+  log?: GameLogEntry[]; // structured per-attempt log (source of truth for live games)
 }
 
 export interface PlayerIssue {
