@@ -210,7 +210,7 @@ function ObsChallengeOverlayPage() {
   const updatedSecondsAgo = lastUpdatedAt ? Math.max(0, Math.floor((now - lastUpdatedAt) / 1000)) : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-start bg-transparent text-white">
+    <div className="obs-browser-source fixed inset-0 z-50 flex items-start justify-start bg-transparent text-white">
       <section
         className="relative isolate overflow-hidden rounded-[28px] border border-white/10 bg-[#050812] shadow-2xl"
         style={{ width: OBS_WIDTH, height: OBS_HEIGHT }}

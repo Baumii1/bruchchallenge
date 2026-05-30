@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged, type User } from 'firebase/auth';
+import { browserLocalPersistence, setPersistence, signInWithEmailAndPassword, signOut, onAuthStateChanged, type User } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { getFirebaseAuthClient, isAdminEmail, isFirebaseConfigured } from '@/lib/firebase-client';
 
@@ -51,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
+      await setPersistence(auth, browserLocalPersistence);
       const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
 
       if (!isAdminEmail(credential.user.email)) {
