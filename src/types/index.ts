@@ -1,4 +1,14 @@
 
+export type GameMatchResult = 'win' | 'loss' | 'draw' | 'note';
+
+export interface GameMatchLogEntry {
+  id: string;
+  result: GameMatchResult;
+  note?: string;
+  createdAt: number;
+  winStreakAfter?: number;
+}
+
 export interface Game {
   id: string;
   name: string;
@@ -23,6 +33,12 @@ export interface Game {
   enableTryCounter?: boolean;
   enableManualLog?: boolean;
   tryCount?: number;
+
+  // Win/streak tracking for b2b, b3b, etc.
+  requiredWinStreak?: number;
+  currentWinStreak?: number;
+  bestWinStreak?: number;
+  matchLog?: GameMatchLogEntry[];
 }
 
 export interface PlayerIssue {

@@ -1,5 +1,5 @@
 
-import type { Challenge, Game } from '@/types';
+import type { Challenge, Game, GameMatchResult } from '@/types';
 
 // Helper function to convert HH:MM:SS or HH:MM:SS.ms string to total seconds
 const durationToSeconds = (durationStr?: string): number => {
@@ -46,6 +46,12 @@ export const defaultGameFlags: Partial<Game> = {
   enableManualLog: false,
   tryCount: 0,
   result: undefined as string | undefined,
+  wins: 0,
+  losses: 0,
+  draws: 0,
+  currentWinStreak: 0,
+  bestWinStreak: 0,
+  matchLog: [],
 };
 
 
@@ -609,6 +615,105 @@ export const setDataUpdateGameProgress = (challengeId: string, gameId: string, p
   }
   persistAndBroadcastChallenges();
   return deepCopy(chal);
+};
+
+// --- Bruch Challenge streak/match result helpers ---
+const inferRequiredWinStreak = (game: Game): number => {
+  if (typeof game.requiredWinStreak === 'number' && Number.isFinite(game.requiredWinStreak) && game.requiredWinStreak > 1) {
+    return Math.round(game.requiredWinStreak);
+  }
+
+  const haystack = `${game.name} ${game.objective}`.toLowerCase();
+  const explicitStreak = haystack.match(/\bb(\d+)b\b/);
+  if (explicitStreak?.[1]) {
+    return Math.max(2, Number(explicitStreak[1]) || 2);
+  }
+
+  if (/\bb2b\b|back[-\s]?to[-\s]?back/.test(haystack)) {
+    return 2;
+  }
+
+  if (/\bb3b\b|three[-\s]?peat|3\s*(wins?|siege)\s*(in\s*a\s*row|am\s*stück|hintereinander)/.test(haystack)) {
+    return 3;
+  }
+
+  return 1;
+};
+
+const getTargetProgress = (game: Game, requiredWinStreak: number): number => {
+  if (typeof game.targetProgress === 'number' && Number.isFinite(game.targetProgress) && game.targetProgress > 0) {
+    return Math.round(game.targetProgress);
+  }
+
+  return requiredWinStreak > 1 ? 1 : 1;
+};
+
+const normalizeMatchNote = (result: GameMatchResult, note?: string): string => {
+  const label = result === 'win' ? 'Win' : result === 'loss' ? 'Loss' : result === 'draw' ? 'Draw' : 'Note';
+  const trimmedNote = note?.trim();
+  return trimmedNote ? `${label}: ${trimmedNote}` : label;
+};
+
+export const setDataRecordGameMatchResult = (
+  challengeId: string,
+  gameId: string,
+  result: GameMatchResult,
+  note?: string
+): Challenge | null => {
+  const challenge = getDataChallengeById(challengeId);
+  if (!challenge) {
+    return null;
+  }
+
+  const game = challenge.games.find((entry) => entry.id === gameId);
+  if (!game) {
+    return null;
+  }
+
+  const requiredWinStreak = inferRequiredWinStreak(game);
+  const targetProgress = getTargetProgress(game, requiredWinStreak);
+  const currentProgress = game.currentProgress ?? 0;
+  const currentWinStreak = game.currentWinStreak ?? 0;
+
+  const nextGame: Game = game;
+  nextGame.requiredWinStreak = requiredWinStreak;
+  nextGame.targetProgress = targetProgress;
+  nextGame.wins = game.wins ?? 0;
+  nextGame.losses = game.losses ?? 0;
+  nextGame.draws = game.draws ?? 0;
+
+  if (result === 'win') {
+    nextGame.wins += 1;
+    nextGame.currentWinStreak = currentWinStreak + 1;
+    nextGame.bestWinStreak = Math.max(game.bestWinStreak ?? 0, nextGame.currentWinStreak);
+
+    if (requiredWinStreak <= 1 || nextGame.currentWinStreak >= requiredWinStreak) {
+      nextGame.currentProgress = Math.min(targetProgress, currentProgress + 1);
+      if ((nextGame.currentProgress ?? 0) >= targetProgress) {
+        nextGame.status = 'completed';
+      }
+    }
+  } else if (result === 'loss') {
+    nextGame.losses += 1;
+    nextGame.currentWinStreak = 0;
+  } else if (result === 'draw') {
+    nextGame.draws += 1;
+    nextGame.currentWinStreak = currentWinStreak;
+  }
+
+  const logEntry = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    result,
+    note: note?.trim() || undefined,
+    createdAt: Date.now(),
+    winStreakAfter: nextGame.currentWinStreak ?? 0,
+  };
+
+  nextGame.matchLog = [...(game.matchLog ?? []), logEntry];
+  nextGame.attempts = [...(game.attempts ?? []), normalizeMatchNote(result, note)];
+  nextGame.result = `${nextGame.currentProgress ?? 0}/${targetProgress}`;
+
+  return challenge;
 };
 
 export const setDataLogGameTry = (challengeId: string, gameId: string, note?: string): Challenge | null => {

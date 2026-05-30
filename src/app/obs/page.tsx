@@ -4,13 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Activity, Clock3, Gamepad2, RadioTower, WifiOff } from 'lucide-react';
 import { fetchLivePageDataAction } from '@/app/actions';
 import { cn } from '@/lib/utils';
+import { HyperatePulseStrip } from '@/components/obs/HyperatePulseStrip';
 import type { Challenge, Game } from '@/types';
 
 const OBS_WIDTH = 360;
 const OBS_HEIGHT = 640;
 const REFRESH_INTERVAL_MS = 2000;
 const PAGE_INTERVAL_MS = 7000;
-const GAMES_PER_PAGE = 5;
+const GAMES_PER_PAGE = 4;
 const CHALLENGE_STORAGE_KEY = 'bruchchallenge:challenges:v1';
 
 const formatTime = (totalSeconds: number): string => {
@@ -230,6 +231,8 @@ function ObsChallengeOverlayPage() {
               </div>
             </div>
           </header>
+
+          <HyperatePulseStrip embedded className="mb-3" />
 
           {isInitialLoading ? (
             <EmptyState icon="loading" title="Lade Overlay" description="Live-Daten werden synchronisiert." />
