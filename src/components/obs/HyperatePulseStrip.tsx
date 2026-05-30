@@ -61,7 +61,7 @@ export function HyperatePulseStrip({ className, embedded = false, livePage = fal
       className={cn(
         !livePage && 'obs-browser-source',
         'grid grid-cols-2 overflow-hidden text-white [scrollbar-width:none]',
-        embedded ? 'mt-2 h-[88px] gap-2' : livePage ? 'min-h-[148px] gap-4' : 'h-[140px] w-[790px] max-w-full gap-3',
+        embedded ? 'h-[78px] gap-2' : livePage ? 'min-h-[148px] gap-4' : 'h-[140px] w-[790px] max-w-full gap-3',
         className
       )}
     >
@@ -81,12 +81,12 @@ function PulseAnimationCard({
   embedded: boolean;
   livePage: boolean;
 }) {
-  const viewportHeight = embedded ? 60 : livePage ? 100 : 96;
+  const viewportHeight = embedded ? 52 : livePage ? 100 : 96;
   const frameHeight = embedded ? 94 : 132;
   const frameWidth = embedded ? 245 : 360;
   const frameScale = embedded ? 0.68 : livePage ? 0.86 : 0.84;
   const frameTranslateX = embedded ? -34 : -34;
-  const frameTranslateY = embedded ? -13 : -13;
+  const frameTranslateY = embedded ? -6 : -13;
 
   return (
     <article
@@ -149,7 +149,7 @@ function PulseAnimationCard({
         <div
           className={cn(
             'flex items-center justify-center rounded-xl border border-dashed border-white/15 bg-black/30 text-center text-white/45',
-            embedded ? 'h-[60px] px-2 text-[9px]' : 'h-[96px] px-4 text-xs'
+            embedded ? 'h-[52px] px-2 text-[9px]' : 'h-[96px] px-4 text-xs'
           )}
         >
           <div>
