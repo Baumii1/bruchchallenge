@@ -1,5 +1,6 @@
 
-import type { Challenge, Game, GameMatchResult } from '@/types';
+import type { Challenge, Game, GameLogEntry, GameMatchResult } from '@/types';
+import { makeLogEntry, recomputeGameDerived } from '@/lib/game-logging';
 
 // Helper function to convert HH:MM:SS or HH:MM:SS.ms string to total seconds
 const durationToSeconds = (durationStr?: string): number => {
@@ -42,9 +43,11 @@ export const defaultGameFlags: Partial<Game> = {
   isTimerActive: false,
   timerStartedAt: undefined,
   attempts: [] as string[],
+  log: [] as GameLogEntry[],
   enableTryCounter: false,
   enableManualLog: false,
   tryCount: 0,
+  bestScore: undefined as number | undefined,
   result: undefined as string | undefined,
   wins: 0,
   losses: 0,
@@ -233,10 +236,11 @@ export let challenges: Challenge[] = [
     scheduledDateTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     status: 'upcoming',
     games: [
-      { ...defaultGameFlags, id: 'g1-next-default', name: 'CS2 Showdown', iconName: 'cs2', objective: '5 wins', targetProgress: 5, enableTryCounter: true, enableManualLog: true },
-      { ...defaultGameFlags, id: 'g2-next-default', name: 'Valorant Supremacy', iconName: 'valorant', objective: '3 wins b2b', targetProgress: 3, enableTryCounter: true, enableManualLog: false },
-      { ...defaultGameFlags, id: 'g3-next-default', name: 'Fall Guys Champion', iconName: 'fallguys', objective: 'Win 1 Crown', targetProgress: 1, enableTryCounter: false, enableManualLog: true },
-      { ...defaultGameFlags, id: 'g4-next-default', name: 'Speedrun Game (No Target)', iconName: 'default', objective: 'Complete as fast as possible', enableTryCounter: true, enableManualLog: true, targetProgress: undefined },
+      { ...defaultGameFlags, id: 'g1-next-default', name: 'Counter-Strike b2b', iconName: 'cs2', objective: '2 Siege in Folge (Back-to-Back)', targetProgress: 2, presetId: 'cs', trackingType: 'winLossDraw', allowDraw: true, backToBack: true, scoreLabel: 'Score (z.B. 13:5)', enableManualLog: true },
+      { ...defaultGameFlags, id: 'g2-next-default', name: 'Valorant', iconName: 'valorant', objective: '2 Siege', targetProgress: 2, presetId: 'valorant', trackingType: 'winLossDraw', allowDraw: true, scoreLabel: 'Score (z.B. 13:7)', enableManualLog: true },
+      { ...defaultGameFlags, id: 'g3-next-default', name: 'Fall Guys', iconName: 'fallguys', objective: '1× Crown', targetProgress: 1, presetId: 'fall-guys', trackingType: 'attempts', winLabel: 'Crown', attemptLabel: 'Versuch', scoreLabel: 'Notiz (z.B. Finale, 2.)', enableTryCounter: true, enableManualLog: true },
+      { ...defaultGameFlags, id: 'g4-next-default', name: 'Higher Lower 20', iconName: 'higherlower', objective: 'Score 20 erreichen', targetProgress: 20, presetId: 'higher-lower', trackingType: 'score', scoreLabel: 'Score', attemptLabel: 'Versuch', enableTryCounter: true, enableManualLog: true },
+      { ...defaultGameFlags, id: 'g5-next-default', name: 'Minecraft Speedrun', iconName: 'minecraftspeedrun', objective: 'Speedrun abschließen', targetProgress: 1, presetId: 'minecraft-speedrun', trackingType: 'completion', winLabel: 'Geschafft', attemptLabel: 'Versuch', scoreLabel: 'Zeit / Notiz', enableManualLog: true },
     ],
     challengeStartedAt: undefined,
     challengeAccumulatedDuration: 0,
@@ -372,14 +376,16 @@ export const setDataCreateNewChallenge = (newChallengeData: Omit<Challenge, 'id'
     ...defaultGameFlags, 
     ...game,             
     id: `${newChallengeId}-g${index + 1}`, 
-    targetProgress: game.targetProgress === null ? undefined : game.targetProgress, 
+    targetProgress: game.targetProgress === null ? undefined : game.targetProgress,
     currentProgress: 0,
-    status: 'pending', 
+    status: 'pending',
     accumulatedDuration: 0,
     isTimerActive: false,
     timerStartedAt: undefined,
     attempts: [],
+    log: [],
     tryCount: 0,
+    bestScore: undefined,
   }));
 
   const challengeToAdd: Challenge = {
@@ -426,8 +432,10 @@ export const setDataChallengeStatus = (id: string, newStatus: 'upcoming' | 'live
           game.isTimerActive = false;
           game.timerStartedAt = undefined;
           game.result = undefined;
-          game.attempts = []; 
+          game.attempts = [];
+          game.log = [];
           game.tryCount = 0;
+          game.bestScore = undefined;
         });
       }
       chal.challengeStartedAt = Date.now();
@@ -462,13 +470,15 @@ export const setDataChallengeStatus = (id: string, newStatus: 'upcoming' | 'live
                 game.status = 'pending'; // Or 'not_attempted' if you add such a status
                 game.result = 'Not Attempted';
             }
-        } else if (newStatus === 'upcoming') { 
+        } else if (newStatus === 'upcoming') {
           game.status = 'pending';
           game.currentProgress = 0;
           game.accumulatedDuration = 0;
           game.result = undefined;
           game.attempts = [];
+          game.log = [];
           game.tryCount = 0;
+          game.bestScore = undefined;
         }
       });
       chal.activeGameId = null;
@@ -737,6 +747,107 @@ export const setDataLogGameTry = (challengeId: string, gameId: string, note?: st
   return deepCopy(chal);
 };
 
+// --- Smart logging (game presets) -----------------------------------------
+
+const findLiveGame = (challengeId: string, gameId: string): { chal: Challenge; game: Game } | null => {
+  const chal = challenges.find((c) => c.id === challengeId);
+  if (!chal || chal.status !== 'live') return null;
+  const game = chal.games.find((g) => g.id === gameId);
+  if (!game) return null;
+  return { chal, game };
+};
+
+// When a game becomes completed, stop & bank its individual timer.
+const stopGameTimerIfCompleted = (chal: Challenge, game: Game) => {
+  if (game.status === 'completed' && game.isTimerActive && game.timerStartedAt) {
+    const elapsed = (Date.now() - game.timerStartedAt) / 1000;
+    game.accumulatedDuration = (game.accumulatedDuration || 0) + elapsed;
+    game.isTimerActive = false;
+    game.timerStartedAt = undefined;
+    if (chal.activeGameId === game.id) chal.activeGameId = null;
+  }
+};
+
+export const setDataLogGameOutcome = (
+  challengeId: string,
+  gameId: string,
+  kind: 'win' | 'loss' | 'draw' | 'attempt',
+  payload?: { score?: string; note?: string }
+): Challenge | null => {
+  ensureClientDataReady();
+  const found = findLiveGame(challengeId, gameId);
+  if (!found) return null;
+  const { chal, game } = found;
+
+  game.log = [...(game.log || []), makeLogEntry(kind, payload)];
+  recomputeGameDerived(game);
+  stopGameTimerIfCompleted(chal, game);
+
+  persistAndBroadcastChallenges();
+  return deepCopy(chal);
+};
+
+export const setDataSetGameScore = (
+  challengeId: string,
+  gameId: string,
+  score: number,
+  note?: string
+): Challenge | null => {
+  ensureClientDataReady();
+  const found = findLiveGame(challengeId, gameId);
+  if (!found) return null;
+  const { chal, game } = found;
+
+  game.bestScore = Math.max(game.bestScore ?? 0, score);
+  game.log = [...(game.log || []), makeLogEntry('attempt', { score: String(score), note })];
+  recomputeGameDerived(game);
+  stopGameTimerIfCompleted(chal, game);
+
+  persistAndBroadcastChallenges();
+  return deepCopy(chal);
+};
+
+export const setDataMarkGameComplete = (
+  challengeId: string,
+  gameId: string,
+  note?: string
+): Challenge | null => {
+  ensureClientDataReady();
+  const found = findLiveGame(challengeId, gameId);
+  if (!found) return null;
+  const { chal, game } = found;
+
+  game.log = [...(game.log || []), makeLogEntry('win', { note })];
+  game.status = 'completed';
+  recomputeGameDerived(game);
+  stopGameTimerIfCompleted(chal, game);
+
+  persistAndBroadcastChallenges();
+  return deepCopy(chal);
+};
+
+export const setDataDeleteGameLogEntry = (
+  challengeId: string,
+  gameId: string,
+  entryId: string
+): Challenge | null => {
+  ensureClientDataReady();
+  const found = findLiveGame(challengeId, gameId);
+  if (!found) return null;
+  const { chal, game } = found;
+
+  const before = game.log?.length ?? 0;
+  game.log = (game.log || []).filter((entry) => entry.id !== entryId);
+  if (game.log.length === before) return deepCopy(chal);
+
+  // Reset the cached best score so it is re-derived from the remaining entries.
+  game.bestScore = undefined;
+  recomputeGameDerived(game);
+
+  persistAndBroadcastChallenges();
+  return deepCopy(chal);
+};
+
 export const setDataAddOverallNote = (challengeId: string, note: string): Challenge | null => {
     ensureClientDataReady();
     const challengeIndex = challenges.findIndex(c => c.id === challengeId);
@@ -839,7 +950,9 @@ export const setDataResetChallengeToUpcoming = (id: string, futureDate: Date): C
             game.timerStartedAt = undefined;
             game.result = undefined;
             game.attempts = [];
+            game.log = [];
             game.tryCount = 0;
+            game.bestScore = undefined;
         });
         
         // ensureUpcomingChallenge(); // No longer automatically creating default challenges after admin action
