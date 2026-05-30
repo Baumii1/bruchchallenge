@@ -1,11 +1,10 @@
 
 import type {Metadata} from 'next';
 import './globals.css';
-import { Header } from '@/components/layout/Header';
-import { Footer } from '@/components/layout/Footer';
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from '@/context/AuthContext'; // Import AuthProvider
+import { AppChrome } from '@/components/layout/AppChrome';
 
 export const metadata: Metadata = {
   title: 'Bruch Challenge Hub',
@@ -27,11 +26,7 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            <Header />
-            <main className="flex-grow container py-8"> 
-              {children}
-            </main>
-            <Footer />
+            <AppChrome>{children}</AppChrome>
             <Toaster />
           </ThemeProvider>
         </AuthProvider>
