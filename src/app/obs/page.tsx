@@ -11,7 +11,7 @@ const OBS_WIDTH = 360;
 const OBS_HEIGHT = 640;
 const REFRESH_INTERVAL_MS = 2000;
 const PAGE_INTERVAL_MS = 7000;
-const GAMES_PER_PAGE = 4;
+const GAMES_PER_PAGE = 3;
 const CHALLENGE_STORAGE_KEY = 'bruchchallenge:challenges:v1';
 
 const formatTime = (totalSeconds: number): string => {

@@ -121,3 +121,30 @@ body:has(.obs-browser-source) html {
   background: transparent;
   color-scheme: dark;
 }
+
+
+/* OBS/HypeRate browser-source cleanup */
+html:has(.obs-browser-source),
+body:has(.obs-browser-source) {
+  overflow: hidden !important;
+  background: transparent !important;
+}
+
+.obs-browser-source,
+.obs-browser-source * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.obs-browser-source::-webkit-scrollbar,
+.obs-browser-source *::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+.hyperate-frame {
+  display: block;
+  overflow: hidden !important;
+  background: transparent !important;
+}
