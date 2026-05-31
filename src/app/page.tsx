@@ -19,6 +19,24 @@ import { Trophy, CalendarSearch, Sparkles, Zap, Flame, History, Gamepad2 } from 
 
 const CHALLENGE_STORAGE_KEY = 'bruchchallenge:challenges:v1';
 
+const parseChallengeDate = (challenge: Challenge): number => {
+  if (challenge.scheduledDateTime) {
+    const scheduledTimestamp = new Date(challenge.scheduledDateTime).getTime();
+    if (Number.isFinite(scheduledTimestamp)) return scheduledTimestamp;
+  }
+
+  const isoDateTimestamp = new Date(challenge.date).getTime();
+  if (Number.isFinite(isoDateTimestamp)) return isoDateTimestamp;
+
+  const germanDateMatch = challenge.date.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (germanDateMatch) {
+    const [, day, month, year] = germanDateMatch;
+    return new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T00:00:00Z`).getTime();
+  }
+
+  return 0;
+};
+
 export default function HomePage() {
   const [allCurrentChallenges, setAllCurrentChallenges] = useState<Challenge[]>(() => getDataChallenges());
 
@@ -65,6 +83,7 @@ export default function HomePage() {
 
   // Sort upcoming challenges by date ascending to find the *next* one
   upcomingChallenges.sort((a, b) => new Date(a.scheduledDateTime!).getTime() - new Date(b.scheduledDateTime!).getTime());
+  pastChallenges.sort((a, b) => parseChallengeDate(b) - parseChallengeDate(a));
 
   // Determine the hero display challenge
   if (liveChallenge) {
@@ -73,7 +92,6 @@ export default function HomePage() {
     displayChallenge = upcomingChallenges[0];
   }
   
-  // Past challenges are already filtered and sorted by getDataChallenges (descending)
   const totalChallenges = allCurrentChallenges.length;
   const totalGamesPlayed = pastChallenges.reduce((sum, challenge) => sum + challenge.games.length, 0);
 
