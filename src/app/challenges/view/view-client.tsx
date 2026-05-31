@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { AlertTriangle, Edit3, Loader2 } from 'lucide-react';
 import { fetchChallengeDetailsAction } from '@/app/actions';
-import { getHardcodedChallengeById } from '@/lib/hardcoded-challenges';
 import ChallengeDetailsClient from '@/components/ChallengeDetailsClient';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -26,7 +25,7 @@ export default function ChallengeDetailsViewClient() {
       }
 
       setIsLoading(true);
-      const loadedChallenge = getHardcodedChallengeById(challengeId) ?? await fetchChallengeDetailsAction(challengeId);
+      const loadedChallenge = await fetchChallengeDetailsAction(challengeId);
       setChallenge(loadedChallenge);
       setIsLoading(false);
     };
