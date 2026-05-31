@@ -17,7 +17,10 @@ export function Header() {
   const navLinks = [
     { href: '/', label: 'Home' },
     { href: '/challenges/live', label: 'Live' },
-    ...(isAdmin ? [{ href: '/admin/create-challenge', label: 'Create' }] : []),
+    ...(isAdmin ? [
+      { href: '/admin/create-challenge', label: 'Create' },
+      { href: '/admin/backup', label: 'Backup' },
+    ] : []),
   ];
 
   return (
