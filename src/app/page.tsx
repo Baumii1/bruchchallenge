@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { getDataChallenges } from '@/lib/data';
-import { withHardcodedChallenges } from '@/lib/hardcoded-challenges';
 import type { Challenge } from '@/types';
 import { ChallengeCard } from '@/components/ChallengeCard';
 import { CountdownTimer } from '@/components/CountdownTimer';
@@ -19,13 +18,12 @@ import { Trophy, CalendarSearch, Sparkles, Zap, Flame, History, Gamepad2 } from 
 // Data fetching like getDataChallenges() will run at build time.
 
 const CHALLENGE_STORAGE_KEY = 'bruchchallenge:challenges:v1';
-const getDisplayedChallenges = () => withHardcodedChallenges(getDataChallenges());
 
 export default function HomePage() {
-  const [allCurrentChallenges, setAllCurrentChallenges] = useState<Challenge[]>(() => getDisplayedChallenges());
+  const [allCurrentChallenges, setAllCurrentChallenges] = useState<Challenge[]>(() => getDataChallenges());
 
   const refreshChallenges = useCallback(() => {
-    setAllCurrentChallenges(getDisplayedChallenges());
+    setAllCurrentChallenges(getDataChallenges());
   }, []);
 
   useEffect(() => {
