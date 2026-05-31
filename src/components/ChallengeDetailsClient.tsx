@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useTransition } from 'react';
@@ -8,11 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { GameStatusDisplay } from '@/components/GameStatusDisplay';
 import { GameIconFactory } from '@/components/icons/GameIconFactory';
-import { CalendarDays, Clock, Hourglass, ListChecks, AlertTriangle, Users, Zap, Trash2, Loader2, NotepadText, Edit3, ArchiveRestore } from 'lucide-react';
+import { CalendarDays, Clock, Hourglass, ListChecks, AlertTriangle, Users, Zap, Trash2, Loader2, NotepadText, Edit3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { deleteChallengeAction, fetchChallengeDetailsAction, restorePastChallengeAction } from '@/app/actions';
+import { deleteChallengeAction, fetchChallengeDetailsAction } from '@/app/actions';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,7 +54,6 @@ export default function ChallengeDetailsClient({ initialChallenge }: ChallengeDe
   const { isAdmin } = useAuth();
   const [challenge, setChallenge] = useState<Challenge>(initialChallenge);
   const [isDeleting, startDeleteTransition] = useTransition();
-  const [isRestoring, startRestoreTransition] = useTransition();
   const { toast } = useToast();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -109,26 +107,6 @@ export default function ChallengeDetailsClient({ initialChallenge }: ChallengeDe
         toast({ title: "Deletion Failed", description: "Could not delete the challenge. Please try again.", variant: "destructive" });
       }
       setShowDeleteConfirm(false);
-    });
-  };
-
-  const handleRestoreChallenge = async () => {
-    if (!challenge || !isAdmin || challenge.status !== 'past') {
-      return;
-    }
-
-    startRestoreTransition(async () => {
-      try {
-        const restoredChallenge = await restorePastChallengeAction(challenge.id);
-        if (restoredChallenge) {
-          toast({ title: 'Challenge restored', description: `${restoredChallenge.title} ist wieder upcoming.` });
-          window.location.href = `/challenges/view?id=${restoredChallenge.id}`;
-        } else {
-          toast({ title: 'Restore failed', description: 'Die Challenge konnte nicht wiederhergestellt werden.', variant: 'destructive' });
-        }
-      } catch (error) {
-        toast({ title: 'Restore failed', description: (error as Error).message, variant: 'destructive' });
-      }
     });
   };
 
@@ -217,12 +195,6 @@ export default function ChallengeDetailsClient({ initialChallenge }: ChallengeDe
                   <Edit3 className="mr-2 h-4 w-4" />
                   Edit Challenge
                 </Link>
-              </Button>
-            )}
-            {isAdmin && challenge.status === 'past' && (
-              <Button type="button" variant="outline" size="lg" onClick={handleRestoreChallenge} disabled={isRestoring}>
-                {isRestoring ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArchiveRestore className="mr-2 h-4 w-4" />}
-                Restore from Archive
               </Button>
             )}
           </div>
