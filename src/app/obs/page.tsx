@@ -314,6 +314,7 @@ interface GameRowProps {
 function GameRow({ challenge, game, now, active = false }: GameRowProps) {
   const gameSeconds = getGameSeconds(challenge, game, now);
   const progressLabel = formatWinCounter(game);
+  const isCompleted = game.status === 'completed';
 
   return (
     <div
@@ -321,20 +322,29 @@ function GameRow({ challenge, game, now, active = false }: GameRowProps) {
         'grid grid-cols-[74px_minmax(0,1fr)_48px] items-center gap-2 rounded-2xl border px-3 shadow-lg transition-all',
         active
           ? 'min-h-[84px] border-primary/60 bg-primary/20 shadow-[0_0_26px_rgba(41,171,226,0.28)]'
-          : 'min-h-[58px] border-white/10 bg-white/[0.055]'
+          : isCompleted
+            ? 'min-h-[58px] border-emerald-400/60 bg-emerald-500/20 shadow-[0_0_18px_rgba(52,211,153,0.22)]'
+            : 'min-h-[58px] border-white/10 bg-white/[0.055]'
       )}
     >
-      <div className="font-mono text-[13px] font-black tabular-nums text-white/90">{formatTime(gameSeconds)}</div>
+      <div className={cn('font-mono text-[13px] font-black tabular-nums', isCompleted && !active ? 'text-emerald-100' : 'text-white/90')}>
+        {formatTime(gameSeconds)}
+      </div>
       <div className="min-w-0 py-2">
         <p
-          className={cn('break-words text-[13px] font-black leading-tight text-white', active && 'text-[15px]')}
+          className={cn('break-words text-[13px] font-black leading-tight', active && 'text-[15px]', isCompleted && !active ? 'text-emerald-50' : 'text-white')}
           style={{ display: '-webkit-box', WebkitLineClamp: active ? 3 : 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
         >
           {game.name}
         </p>
         {active && <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/90">läuft gerade</p>}
       </div>
-      <div className="justify-self-end rounded-xl border border-white/10 bg-black/25 px-2 py-1 font-mono text-[13px] font-black tabular-nums text-white">
+      <div
+        className={cn(
+          'justify-self-end rounded-xl border px-2 py-1 font-mono text-[13px] font-black tabular-nums',
+          isCompleted && !active ? 'border-emerald-300/50 bg-emerald-400/20 text-emerald-50' : 'border-white/10 bg-black/25 text-white'
+        )}
+      >
         {progressLabel}
       </div>
     </div>
