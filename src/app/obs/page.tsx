@@ -12,6 +12,7 @@ const OBS_HEIGHT = 640;
 const REFRESH_INTERVAL_MS = 2000;
 const PAGE_INTERVAL_MS = 7000;
 const GAMES_PER_PAGE = 3;
+const GAMES_PER_PAGE_WITH_ACTIVE_GAME = 2;
 const CHALLENGE_STORAGE_KEY = 'bruchchallenge:challenges:v1';
 
 const formatTime = (totalSeconds: number): string => {
@@ -185,8 +186,9 @@ function ObsChallengeOverlayPage() {
     }
 
     const gamesWithoutActiveGame = challenge.games.filter((game) => game.id !== activeGame?.id);
-    return chunkGames(gamesWithoutActiveGame, GAMES_PER_PAGE);
-  }, [activeGame?.id, challenge]);
+    const gamesPerPage = activeGame ? GAMES_PER_PAGE_WITH_ACTIVE_GAME : GAMES_PER_PAGE;
+    return chunkGames(gamesWithoutActiveGame, gamesPerPage);
+  }, [activeGame, challenge]);
 
   useEffect(() => {
     setPageIndex(0);
