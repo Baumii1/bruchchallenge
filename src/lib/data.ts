@@ -910,11 +910,28 @@ export const getDataChallengeById = (id: string): Challenge | null => {
 
 export const getDataUpcomingChallenge = (): Challenge | null => {
   ensureClientDataReady();
-  const now = new Date();
-  const upcomingAndFuture = challenges
-      .filter(c => c.status === 'upcoming' && c.scheduledDateTime && new Date(c.scheduledDateTime) > now)
-      .sort((a,b) => new Date(a.scheduledDateTime!).getTime() - new Date(b.scheduledDateTime!).getTime()); 
-  return upcomingAndFuture.length > 0 ? deepCopy(upcomingAndFuture[0]) : null;
+
+  const now = Date.now();
+  const upcomingChallenges = challenges
+    .filter(c => c.status === 'upcoming' && c.scheduledDateTime)
+    .sort((a, b) => {
+      const timeA = new Date(a.scheduledDateTime!).getTime();
+      const timeB = new Date(b.scheduledDateTime!).getTime();
+
+      const aIsFuture = timeA > now;
+      const bIsFuture = timeB > now;
+
+      // Wenn beide in der Zukunft liegen: nächste kommende zuerst
+      if (aIsFuture && bIsFuture) return timeA - timeB;
+
+      // Wenn beide schon überfällig sind: zuletzt überfällige zuerst
+      if (!aIsFuture && !bIsFuture) return timeB - timeA;
+
+      // Zukunft bleibt wichtiger als überfällig
+      return aIsFuture ? -1 : 1;
+    });
+
+  return upcomingChallenges.length > 0 ? deepCopy(upcomingChallenges[0]) : null;
 };
 
 export const getDataLiveChallengeDetails = (): Challenge | null => {
