@@ -74,7 +74,7 @@ export default function HomePage() {
   allCurrentChallenges.forEach(c => {
     if (c.status === 'live') {
       liveChallenge = c;
-    } else if (c.status === 'upcoming' && c.scheduledDateTime && new Date(c.scheduledDateTime) > new Date()) {
+    } else if (c.status === 'upcoming') {
       upcomingChallenges.push(c);
     } else if (c.status === 'past') {
       pastChallenges.push(c);
