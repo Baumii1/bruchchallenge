@@ -1,10 +1,32 @@
 "use client";
 
 import type { ReactNode } from 'react';
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { browserLocalPersistence, setPersistence, signInWithEmailAndPassword, signOut, onAuthStateChanged, type User } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { getFirebaseAuthClient, isAdminEmail, isFirebaseConfigured } from '@/lib/firebase-client';
+
+// Keine rohen Firebase-SDK-Meldungen an die UI durchreichen.
+const describeLoginError = (error: unknown): string => {
+  const code = (error as { code?: string })?.code ?? '';
+
+  switch (code) {
+    case 'auth/invalid-credential':
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+      return 'E-Mail oder Passwort ist falsch.';
+    case 'auth/invalid-email':
+      return 'Diese E-Mail-Adresse ist ungültig.';
+    case 'auth/user-disabled':
+      return 'Dieses Konto wurde deaktiviert.';
+    case 'auth/too-many-requests':
+      return 'Zu viele Versuche. Bitte warte kurz und probiere es erneut.';
+    case 'auth/network-request-failed':
+      return 'Netzwerkfehler. Bitte Verbindung prüfen und erneut versuchen.';
+    default:
+      return 'Login fehlgeschlagen. Bitte versuche es erneut.';
+  }
+};
 
 interface AuthContextType {
   isAdmin: boolean;
@@ -42,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     const auth = getFirebaseAuthClient();
 
     if (!auth) {
@@ -64,13 +86,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAuthError(null);
       return true;
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unbekannter Login-Fehler.';
-      setAuthError(message);
+      setAuthError(describeLoginError(error));
       return false;
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     const auth = getFirebaseAuthClient();
 
     if (auth) {
@@ -79,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setUser(null);
     router.push('/');
-  };
+  }, [router]);
 
   const value = useMemo<AuthContextType>(() => ({
     isAdmin: isAdminEmail(user?.email),
@@ -89,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     logout,
     authError,
-  }), [authEnabled, authError, isAuthReady, user]);
+  }), [authEnabled, authError, isAuthReady, login, logout, user]);
 
   return (
     <AuthContext.Provider value={value}>

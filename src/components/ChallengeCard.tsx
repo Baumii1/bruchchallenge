@@ -1,6 +1,8 @@
+"use client";
 
 import Link from 'next/link';
 import type { Challenge } from '@/types';
+import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { GameIconFactory } from '@/components/icons/GameIconFactory';
@@ -15,6 +17,7 @@ interface ChallengeCardProps {
 }
 
 export function ChallengeCard({ challenge, isUpcomingHero = false }: ChallengeCardProps) {
+  const { isAdmin } = useAuth();
   const displayDate = challenge.scheduledDateTime
     ? new Date(challenge.scheduledDateTime).toLocaleDateString("en-US", { year: 'numeric', month: 'long', day: 'numeric' })
     : new Date(challenge.date).toLocaleDateString("en-US", { year: 'numeric', month: 'long', day: 'numeric' });
@@ -28,9 +31,9 @@ export function ChallengeCard({ challenge, isUpcomingHero = false }: ChallengeCa
   const currentStatus = statusConfig[challenge.status] || statusConfig.past;
 
   const cardClasses = cn(
-    "flex flex-col overflow-hidden shadow-lg hover:shadow-xl dark:hover:shadow-primary/20 transition-all duration-300 rounded-xl border group",
+    "flex flex-col overflow-hidden shadow-lg hover:shadow-xl hover:-translate-y-1 dark:hover:shadow-primary/20 transition-all duration-300 rounded-xl border group",
     isUpcomingHero ? "border-2 border-accent bg-card" : "bg-card border-border",
-    challenge.status === 'live' && "border-2 border-destructive shadow-destructive/30"
+    challenge.status === 'live' && "border-2 border-destructive shadow-destructive/30 animate-live-glow"
   );
 
   return (
@@ -94,10 +97,10 @@ export function ChallengeCard({ challenge, isUpcomingHero = false }: ChallengeCa
         <div className="flex w-full flex-col gap-2">
           <Button asChild className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm hover:shadow-md transition-all">
             <Link href={`/challenges/view?id=${challenge.id}`}>
-              <Info className="mr-2 h-4 w-4" /> View Details
+              <Info className="mr-2 h-4 w-4" /> Details ansehen
             </Link>
           </Button>
-          {challenge.status === 'upcoming' && (
+          {isAdmin && challenge.status === 'upcoming' && (
             <Button asChild variant="outline" className="w-full">
               <Link href={`/admin/edit-challenge?id=${challenge.id}`}>
                 <Edit3 className="mr-2 h-4 w-4" /> Geplante Challenge bearbeiten

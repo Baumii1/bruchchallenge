@@ -29,17 +29,23 @@ export default function LiveResultsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, startTransition] = useTransition();
 
-  const loadChallenge = useCallback(async () => {
-    setIsLoading(true);
+  const loadChallenge = useCallback(async (showSpinner = false) => {
+    if (showSpinner) setIsLoading(true);
     const nextChallenge = await fetchLivePageDataAction();
     setChallenge(nextChallenge);
-    setIsLoading(false);
+    if (showSpinner) setIsLoading(false);
   }, []);
 
   useEffect(() => {
-    void loadChallenge();
-    const interval = window.setInterval(() => void loadChallenge(), 2000);
-    return () => window.clearInterval(interval);
+    void loadChallenge(true);
+    // Updates kommen über den Firestore-Snapshot-Listener; Intervall nur als Fallback.
+    const interval = window.setInterval(() => void loadChallenge(), 15000);
+    const handleDataUpdate = () => void loadChallenge();
+    window.addEventListener('bruchchallenge:data-updated', handleDataUpdate as EventListener);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('bruchchallenge:data-updated', handleDataUpdate as EventListener);
+    };
   }, [loadChallenge]);
 
   const games = useMemo(() => challenge?.games ?? [], [challenge]);

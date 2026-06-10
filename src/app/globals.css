@@ -96,6 +96,21 @@
 }
 
 
+/* Barrierefreiheit: dekorative Dauer-Animationen abschalten, wenn das System
+   reduzierte Bewegung wünscht. OBS-Browser-Sources setzen das Flag nicht,
+   das Overlay animiert also weiterhin. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-heartbeat,
+  .animate-soft-ping,
+  .animate-live-glow,
+  .animate-fade-in-up,
+  .animate-ping,
+  .animate-pulse,
+  .animate-bounce {
+    animation: none !important;
+  }
+}
+
 /* OBS-only browser-source cleanup.
    Do not target body via :has(.obs-browser-source), because /challenges/live embeds the pulse component too. */
 html:has(.obs-page-root),

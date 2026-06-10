@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { HeartPulse, Loader2, RadioTower } from 'lucide-react';
 import { getPulsePlayers } from '@/lib/pulse';
 import { writePulseBroadcastEntry } from '@/lib/pulse-broadcast';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,10 +13,18 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 
 export default function PulseControlPage() {
+  const router = useRouter();
+  const { isAdmin, isAuthReady } = useAuth();
   const players = useMemo(() => getPulsePlayers(), []);
   const [values, setValues] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (isAuthReady && !isAdmin) {
+      router.push('/admin/login');
+    }
+  }, [isAdmin, isAuthReady, router]);
 
   const writeValue = (playerId: string, name: string) => {
     const bpm = Number(values[playerId]);
@@ -37,6 +47,19 @@ export default function PulseControlPage() {
       toast({ title: `${name} aktualisiert`, description: `${Math.round(bpm)} bpm gesendet.` });
     });
   };
+
+  if (!isAuthReady) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <span className="mt-4 text-lg">Admin-Status wird geladen...</span>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return null;
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">

@@ -99,11 +99,33 @@ export default {
   				to: {
   					height: '0'
   				}
+  			},
+  			'fade-in-up': {
+  				from: { opacity: '0', transform: 'translateY(12px)' },
+  				to: { opacity: '1', transform: 'translateY(0)' }
+  			},
+  			heartbeat: {
+  				'0%, 100%': { transform: 'scale(1)' },
+  				'25%': { transform: 'scale(1.15)' },
+  				'40%': { transform: 'scale(0.97)' },
+  				'60%': { transform: 'scale(1.08)' }
+  			},
+  			'soft-ping': {
+  				'0%': { transform: 'scale(1)', opacity: '0.7' },
+  				'70%, 100%': { transform: 'scale(1.5)', opacity: '0' }
+  			},
+  			'live-glow': {
+  				'0%, 100%': { boxShadow: '0 0 0 0 hsl(var(--destructive) / 0.35)' },
+  				'50%': { boxShadow: '0 0 0 6px hsl(var(--destructive) / 0)' }
   			}
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
-  			'accordion-up': 'accordion-up 0.2s ease-out'
+  			'accordion-up': 'accordion-up 0.2s ease-out',
+  			'fade-in-up': 'fade-in-up 0.5s ease-out both',
+  			heartbeat: 'heartbeat 1.6s ease-in-out infinite',
+  			'soft-ping': 'soft-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite',
+  			'live-glow': 'live-glow 2.2s ease-in-out infinite'
   		},
       boxShadow: { // Added some subtle shadow variants
         'strong': '0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1)',
