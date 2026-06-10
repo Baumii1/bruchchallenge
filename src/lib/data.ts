@@ -1,6 +1,7 @@
 
 import type { Challenge, Game, GameLogEntry, GameMatchResult } from '@/types';
 import { makeLogEntry, recomputeGameDerived } from '@/lib/game-logging';
+import { getFirebaseAuthClient, getFirebaseDb, isAdminEmail } from '@/lib/firebase-client';
 
 // Helper function to convert HH:MM:SS or HH:MM:SS.ms string to total seconds
 const durationToSeconds = (durationStr?: string): number => {
@@ -299,30 +300,26 @@ const persistChallengesToBrowserStorage = () => {
   }
 };
 
+// Schreibrechte werden serverseitig durch firestore.rules erzwungen; dieser
+// Check verhindert nur, dass Viewer-Clients sinnlose (abgelehnte) Writes senden.
+const isAdminSessionActive = (): boolean => {
+  try {
+    return isAdminEmail(getFirebaseAuthClient()?.currentUser?.email);
+  } catch {
+    return false;
+  }
+};
+
 const initializeRemoteSyncIfConfigured = () => {
   if (typeof window === 'undefined' || hasInitializedRemoteSync) return;
   hasInitializedRemoteSync = true;
 
-  const firebaseConfig = {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  };
-
-  if (!firebaseConfig.apiKey || !firebaseConfig.projectId || !firebaseConfig.appId) {
-    return;
-  }
+  const db = getFirebaseDb();
+  if (!db) return;
 
   void (async () => {
     try {
-      const [{ initializeApp, getApps }, { getFirestore, doc, getDoc, onSnapshot, setDoc }] = await Promise.all([
-        import('firebase/app'),
-        import('firebase/firestore'),
-      ]);
-
-      const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-      const db = getFirestore(app);
+      const { doc, getDoc, onSnapshot, setDoc } = await import('firebase/firestore');
       const challengeDocRef = doc(db, 'bruchchallenge', 'shared-state');
 
       pushRemoteSnapshot = async (payload: Challenge[]) => {
@@ -336,7 +333,8 @@ const initializeRemoteSyncIfConfigured = () => {
           challenges = remoteData;
           persistChallengesToBrowserStorage();
         }
-      } else {
+      } else if (isAdminSessionActive()) {
+        // Nur eine Admin-Session darf den Remote-Stand initial befüllen.
         await pushRemoteSnapshot(deepCopy(challenges));
       }
 
@@ -355,11 +353,11 @@ const initializeRemoteSyncIfConfigured = () => {
 const persistAndBroadcastChallenges = () => {
   persistChallengesToBrowserStorage();
   initializeRemoteSyncIfConfigured();
-  if (!pushRemoteSnapshot) return;
+  if (!pushRemoteSnapshot || !isAdminSessionActive()) return;
 
   if (remoteSyncTimer) clearTimeout(remoteSyncTimer);
   remoteSyncTimer = setTimeout(() => {
-    if (!pushRemoteSnapshot) return;
+    if (!pushRemoteSnapshot || !isAdminSessionActive()) return;
     void pushRemoteSnapshot(deepCopy(challenges));
   }, 250);
 };
@@ -650,12 +648,12 @@ const inferRequiredWinStreak = (game: Game): number => {
   return 1;
 };
 
-const getTargetProgress = (game: Game, requiredWinStreak: number): number => {
+const getTargetProgress = (game: Game): number => {
   if (typeof game.targetProgress === 'number' && Number.isFinite(game.targetProgress) && game.targetProgress > 0) {
     return Math.round(game.targetProgress);
   }
 
-  return requiredWinStreak > 1 ? 1 : 1;
+  return 1;
 };
 
 const normalizeMatchNote = (result: GameMatchResult, note?: string): string => {
@@ -670,7 +668,8 @@ export const setDataRecordGameMatchResult = (
   result: GameMatchResult,
   note?: string
 ): Challenge | null => {
-  const challenge = getDataChallengeById(challengeId);
+  ensureClientDataReady();
+  const challenge = challenges.find((entry) => entry.id === challengeId);
   if (!challenge) {
     return null;
   }
@@ -681,34 +680,33 @@ export const setDataRecordGameMatchResult = (
   }
 
   const requiredWinStreak = inferRequiredWinStreak(game);
-  const targetProgress = getTargetProgress(game, requiredWinStreak);
+  const targetProgress = getTargetProgress(game);
   const currentProgress = game.currentProgress ?? 0;
   const currentWinStreak = game.currentWinStreak ?? 0;
 
-  const nextGame: Game = game;
-  nextGame.requiredWinStreak = requiredWinStreak;
-  nextGame.targetProgress = targetProgress;
-  nextGame.wins = game.wins ?? 0;
-  nextGame.losses = game.losses ?? 0;
-  nextGame.draws = game.draws ?? 0;
+  game.requiredWinStreak = requiredWinStreak;
+  game.targetProgress = targetProgress;
+  game.wins = game.wins ?? 0;
+  game.losses = game.losses ?? 0;
+  game.draws = game.draws ?? 0;
 
   if (result === 'win') {
-    nextGame.wins += 1;
-    nextGame.currentWinStreak = currentWinStreak + 1;
-    nextGame.bestWinStreak = Math.max(game.bestWinStreak ?? 0, nextGame.currentWinStreak);
+    game.wins += 1;
+    game.currentWinStreak = currentWinStreak + 1;
+    game.bestWinStreak = Math.max(game.bestWinStreak ?? 0, game.currentWinStreak);
 
-    if (requiredWinStreak <= 1 || nextGame.currentWinStreak >= requiredWinStreak) {
-      nextGame.currentProgress = Math.min(targetProgress, currentProgress + 1);
-      if ((nextGame.currentProgress ?? 0) >= targetProgress) {
-        nextGame.status = 'completed';
+    if (requiredWinStreak <= 1 || game.currentWinStreak >= requiredWinStreak) {
+      game.currentProgress = Math.min(targetProgress, currentProgress + 1);
+      if ((game.currentProgress ?? 0) >= targetProgress) {
+        game.status = 'completed';
       }
     }
   } else if (result === 'loss') {
-    nextGame.losses += 1;
-    nextGame.currentWinStreak = 0;
+    game.losses += 1;
+    game.currentWinStreak = 0;
   } else if (result === 'draw') {
-    nextGame.draws += 1;
-    nextGame.currentWinStreak = currentWinStreak;
+    game.draws += 1;
+    game.currentWinStreak = currentWinStreak;
   }
 
   const logEntry = {
@@ -716,14 +714,16 @@ export const setDataRecordGameMatchResult = (
     result,
     note: note?.trim() || undefined,
     createdAt: Date.now(),
-    winStreakAfter: nextGame.currentWinStreak ?? 0,
+    winStreakAfter: game.currentWinStreak ?? 0,
   };
 
-  nextGame.matchLog = [...(game.matchLog ?? []), logEntry];
-  nextGame.attempts = [...(game.attempts ?? []), normalizeMatchNote(result, note)];
-  nextGame.result = `${nextGame.currentProgress ?? 0}/${targetProgress}`;
+  game.matchLog = [...(game.matchLog ?? []), logEntry];
+  game.attempts = [...(game.attempts ?? []), normalizeMatchNote(result, note)];
+  game.result = `${game.currentProgress ?? 0}/${targetProgress}`;
 
-  return challenge;
+  stopGameTimerIfCompleted(challenge, game);
+  persistAndBroadcastChallenges();
+  return deepCopy(challenge);
 };
 
 export const setDataLogGameTry = (challengeId: string, gameId: string, note?: string): Challenge | null => {

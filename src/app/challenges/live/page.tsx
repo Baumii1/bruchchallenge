@@ -144,9 +144,11 @@ export default function LiveChallengePage() {
   }, [fetchAndSetChallenge]);
 
   useEffect(() => {
+    // Realtime-Updates liefert der Firestore-Snapshot-Listener über das
+    // data-updated Event; das Intervall ist nur ein Fallback bei verpassten Events.
     const intervalId = setInterval(() => {
       fetchAndSetChallenge(false);
-    }, 2000);
+    }, 15000);
 
     const handleStorageUpdate = (event: StorageEvent) => {
       if (event.key && event.key !== CHALLENGE_STORAGE_KEY) {
@@ -495,7 +497,7 @@ const handleServerAction = async (
             <div className="flex items-center gap-3">
                 <RadioTower className={cn("h-10 w-10",
                     isChallengeActuallyLive ?"text-destructive" : isChallengeUpcoming ?"text-accent" :"text-primary",
-                    isChallengeActuallyLive && liveChallenge.isChallengeTimerActive &&"animate-ping absolute opacity-70"
+                    isChallengeActuallyLive && liveChallenge.isChallengeTimerActive &&"animate-soft-ping absolute"
                 )} />
                 <RadioTower className={cn("h-10 w-10 relative",
                     isChallengeActuallyLive ?"text-destructive" : isChallengeUpcoming ?"text-accent" :"text-primary",

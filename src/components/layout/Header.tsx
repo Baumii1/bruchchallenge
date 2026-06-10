@@ -9,19 +9,33 @@ import { useAuth } from '@/context/AuthContext';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Loader2, Menu } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ChevronDown, ClipboardList, DatabaseBackup, HeartPulse, Loader2, Menu, PlusCircle, RadioTower, ShieldCheck } from 'lucide-react';
+
+const publicLinks = [
+  { href: '/', label: 'Home' },
+  { href: '/challenges/live', label: 'Live' },
+];
+
+const adminLinks = [
+  { href: '/admin/create-challenge', label: 'Challenge erstellen', icon: PlusCircle },
+  { href: '/admin/live-results', label: 'Live Results', icon: ClipboardList },
+  { href: '/admin/backup', label: 'Backup & Repair', icon: DatabaseBackup },
+  { href: '/admin/hyperate', label: 'HypeRate-Links', icon: HeartPulse },
+  { href: '/admin/pulse-control', label: 'Pulse Control', icon: RadioTower },
+];
 
 export function Header() {
   const { isAdmin, logout, adminEmail, isAuthReady } = useAuth();
   const pathname = usePathname();
-  const navLinks = [
-    { href: '/', label: 'Home' },
-    { href: '/challenges/live', label: 'Live' },
-    ...(isAdmin ? [
-      { href: '/admin/create-challenge', label: 'Create' },
-      { href: '/admin/backup', label: 'Backup' },
-    ] : []),
-  ];
+  const isAdminRoute = pathname?.startsWith('/admin') && pathname !== '/admin/login';
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -32,7 +46,7 @@ export function Header() {
         </Link>
         <div className="flex items-center gap-2">
           <nav className="hidden sm:flex items-center gap-1">
-            {navLinks.map((link) => (
+            {publicLinks.map((link) => (
               <Button
                 key={link.href}
                 variant="ghost"
@@ -45,11 +59,40 @@ export function Header() {
                 <Link href={link.href}>{link.label}</Link>
               </Button>
             ))}
+            {isAdmin && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      'text-muted-foreground hover:text-foreground gap-1',
+                      isAdminRoute && 'text-foreground bg-muted'
+                    )}
+                  >
+                    <ShieldCheck className="h-4 w-4 text-primary" />
+                    Admin
+                    <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">Admin-Werkzeuge</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {adminLinks.map((link) => (
+                    <DropdownMenuItem key={link.href} asChild>
+                      <Link href={link.href} className={cn('flex items-center gap-2 w-full', pathname === link.href && 'bg-muted')}>
+                        <link.icon className="h-4 w-4 text-primary" />
+                        {link.label}
+                      </Link>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </nav>
           <Separator orientation="vertical" className="h-6 hidden sm:block mx-2" />
           <Sheet>
             <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="sm:hidden" aria-label="Open menu">
+              <Button variant="outline" size="icon" className="sm:hidden" aria-label="Menü öffnen">
                 <Menu className="h-4 w-4" />
               </Button>
             </SheetTrigger>
@@ -58,7 +101,7 @@ export function Header() {
                 <SheetTitle>Navigation</SheetTitle>
               </SheetHeader>
               <nav className="mt-6 flex flex-col gap-2">
-                {navLinks.map((link) => (
+                {publicLinks.map((link) => (
                   <Button
                     key={link.href}
                     variant={pathname === link.href ? 'default' : 'ghost'}
@@ -68,6 +111,27 @@ export function Header() {
                     <Link href={link.href}>{link.label}</Link>
                   </Button>
                 ))}
+                {isAdmin && (
+                  <>
+                    <Separator className="my-2" />
+                    <p className="px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                      <ShieldCheck className="h-3.5 w-3.5 text-primary" /> Admin
+                    </p>
+                    {adminLinks.map((link) => (
+                      <Button
+                        key={link.href}
+                        variant={pathname === link.href ? 'default' : 'ghost'}
+                        asChild
+                        className="justify-start"
+                      >
+                        <Link href={link.href}>
+                          <link.icon className="mr-2 h-4 w-4" />
+                          {link.label}
+                        </Link>
+                      </Button>
+                    ))}
+                  </>
+                )}
               </nav>
             </SheetContent>
           </Sheet>

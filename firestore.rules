@@ -1,0 +1,33 @@
+rules_version = '2';
+
+// Bruch Challenge Hub – Firestore Security Rules
+//
+// Der Client-Code kann manipuliert werden (statische GitHub-Pages-Seite),
+// deshalb ist DIESE Datei die einzige echte Schreibschutz-Schicht.
+// Deployment: `firebase deploy --only firestore:rules` (siehe README).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Muss mit NEXT_PUBLIC_ADMIN_EMAILS uebereinstimmen.
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email.lower() in [
+          'kappelermerlin@gmail.com'
+        ];
+    }
+
+    // Geteilter App-State: Challenges, Pulse-Broadcast, HypeRate-Links.
+    // Lesen: alle Zuschauer (auch ohne Login).
+    // Schreiben: ausschliesslich freigeschaltete Admin-Konten.
+    match /bruchchallenge/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Alles andere bleibt komplett gesperrt.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

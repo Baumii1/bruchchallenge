@@ -69,7 +69,9 @@ export default function ChallengeDetailsClient({ initialChallenge }: ChallengeDe
       }
     };
 
-    const intervalId = setInterval(refreshChallenge, 1000);
+    // Live-Updates kommen über den Firestore-Snapshot-Listener (data-updated)
+    // und Storage-Events; das Intervall ist nur ein Sicherheitsnetz.
+    const intervalId = setInterval(refreshChallenge, 30000);
     const handleStorageUpdate = (event: StorageEvent) => {
       if (event.key && event.key !== CHALLENGE_STORAGE_KEY) {
         return;
@@ -127,7 +129,7 @@ export default function ChallengeDetailsClient({ initialChallenge }: ChallengeDe
   const statusConfig = {
     past: { text: 'Concluded', variant: 'secondary', icon: <CalendarDays className="h-4 w-4 mr-1.5" />, bgColor: 'bg-secondary text-secondary-foreground' },
     upcoming: { text: 'Upcoming', variant: 'default', icon: <Zap className="h-4 w-4 mr-1.5 text-yellow-300" />, bgColor: 'bg-blue-500 text-blue-foreground' },
-    live: { text: 'LIVE NOW!', variant: 'destructive', icon: <Zap className="h-4 w-4 mr-1.5 animate-ping" />, bgColor: 'bg-red-600 text-red-foreground' },
+    live: { text: 'LIVE NOW!', variant: 'destructive', icon: <Zap className="h-4 w-4 mr-1.5 animate-heartbeat" />, bgColor: 'bg-red-600 text-red-foreground' },
   } as const;
 
   const currentStatusInfo = statusConfig[challenge.status] || statusConfig.past;

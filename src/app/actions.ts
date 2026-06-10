@@ -278,10 +278,22 @@ const hydrateChallengesSnapshotForFreshSession = async () => {
   }
 };
 
+// Realtime-Updates kommen über den onSnapshot-Listener in lib/data.ts.
+// Dieser explizite Remote-Read dient nur noch als periodische Versöhnung
+// und wird gedrosselt, damit nicht jede Poll-Schleife Firestore-Reads erzeugt.
+const REMOTE_SYNC_MIN_INTERVAL_MS = 30000;
+let lastRemoteSyncAt = 0;
+
 const syncChallengesSnapshotFromRemote = async () => {
   if (typeof window === 'undefined') {
     return;
   }
+
+  const now = Date.now();
+  if (now - lastRemoteSyncAt < REMOTE_SYNC_MIN_INTERVAL_MS) {
+    return;
+  }
+  lastRemoteSyncAt = now;
 
   try {
     const remoteSnapshot = await readRemoteChallengesSnapshot();

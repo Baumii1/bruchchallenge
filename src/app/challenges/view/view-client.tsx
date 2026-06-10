@@ -5,12 +5,14 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { AlertTriangle, Edit3, Loader2 } from 'lucide-react';
 import { fetchChallengeDetailsAction } from '@/app/actions';
+import { useAuth } from '@/context/AuthContext';
 import ChallengeDetailsClient from '@/components/ChallengeDetailsClient';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import type { Challenge } from '@/types';
 
 export default function ChallengeDetailsViewClient() {
+  const { isAdmin } = useAuth();
   const searchParams = useSearchParams();
   const challengeId = searchParams.get('id');
   const [challenge, setChallenge] = useState<Challenge | null>(null);
@@ -61,7 +63,7 @@ export default function ChallengeDetailsViewClient() {
 
   return (
     <div className="space-y-4">
-      {challenge.status === 'upcoming' && (
+      {isAdmin && challenge.status === 'upcoming' && (
         <div className="flex justify-end">
           <Button asChild variant="outline">
             <Link href={`/admin/edit-challenge?id=${challenge.id}`}>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { getDataChallenges } from '@/lib/data';
+import { useAuth } from '@/context/AuthContext';
 import type { Challenge } from '@/types';
 import { ChallengeCard } from '@/components/ChallengeCard';
 import { CountdownTimer } from '@/components/CountdownTimer';
@@ -38,6 +39,7 @@ const parseChallengeDate = (challenge: Challenge): number => {
 };
 
 export default function HomePage() {
+  const { isAdmin } = useAuth();
   const [allCurrentChallenges, setAllCurrentChallenges] = useState<Challenge[]>(() => getDataChallenges());
 
   const refreshChallenges = useCallback(() => {
@@ -46,7 +48,9 @@ export default function HomePage() {
 
   useEffect(() => {
     refreshChallenges();
-    const poller = setInterval(refreshChallenges, 1000);
+    // Updates kommen über den Firestore-Snapshot-Listener (data-updated Event)
+    // und Storage-Events anderer Tabs; das Intervall ist nur ein Fallback.
+    const poller = setInterval(refreshChallenges, 30000);
     const handleStorageUpdate = (event: StorageEvent) => {
       if (event.key && event.key !== CHALLENGE_STORAGE_KEY) {
         return;
@@ -97,7 +101,7 @@ export default function HomePage() {
 
   return (
     <div className="space-y-12 md:space-y-16">
-      <section className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-background to-accent/10 p-6 sm:p-8 shadow-xl">
+      <section className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-background to-accent/10 p-6 sm:p-8 shadow-xl animate-fade-in-up">
         <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
           <div className="space-y-3">
             <p className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
@@ -130,11 +134,11 @@ export default function HomePage() {
 
       {/* Upcoming or Live Challenge Section */}
       {displayChallenge && (displayChallenge.status === 'upcoming' || displayChallenge.status === 'live') && (
-        <section className="bg-card p-6 sm:p-8 rounded-xl shadow-2xl border border-primary/30 dark:border-primary/50">
+        <section className="bg-card p-6 sm:p-8 rounded-xl shadow-2xl border border-primary/30 dark:border-primary/50 animate-fade-in-up">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
             <div className='flex items-center gap-3'>
               {displayChallenge.status === 'live' ? (
-                <Zap className="h-10 w-10 text-destructive animate-ping" />
+                <Zap className="h-10 w-10 text-destructive animate-heartbeat" />
               ) : (
                 <Sparkles className="h-10 w-10 text-accent hidden sm:block" />
               )}
@@ -162,9 +166,10 @@ export default function HomePage() {
       {!displayChallenge && (
         <Alert className="border-primary bg-primary/5 text-primary dark:bg-primary/10 dark:text-primary-foreground/90 rounded-lg p-6">
           <CalendarSearch className="h-6 w-6 !text-primary mr-3" />
-          <AlertTitle className="text-xl font-semibold mb-1">No Upcoming or Live Challenges</AlertTitle>
+          <AlertTitle className="text-xl font-semibold mb-1">Keine aktive oder geplante Challenge</AlertTitle>
           <AlertDescription>
-            The arena is quiet for now... Stay tuned! New challenges will be announced soon. In the meantime, check out the <Link href="/admin/create-challenge" className="font-semibold underline hover:text-primary/80">Create Challenge</Link> page to set up a new one!
+            Die Arena ist gerade ruhig – neue Challenges werden hier angekündigt.
+            {isAdmin && <> Du kannst auf der <Link href="/admin/create-challenge" className="font-semibold underline hover:text-primary/80">Create-Challenge-Seite</Link> direkt eine neue anlegen.</>}
           </AlertDescription>
         </Alert>
       )}
@@ -197,12 +202,15 @@ export default function HomePage() {
         </section>
       )}
 
-      {pastChallenges.length === 0 && !displayChallenge && ( 
+      {pastChallenges.length === 0 && !displayChallenge && (
          <Alert>
             <Trophy className="h-5 w-5" />
-            <AlertTitle>The Stage is Set</AlertTitle>
+            <AlertTitle>Die Bühne ist bereit</AlertTitle>
             <AlertDescription>
-              No challenges recorded yet. Be the first to <Link href="/admin/create-challenge" className="font-semibold underline hover:text-primary/80">create one</Link> and make history!
+              Noch keine Challenges aufgezeichnet.
+              {isAdmin
+                ? <> Lege die <Link href="/admin/create-challenge" className="font-semibold underline hover:text-primary/80">erste Challenge</Link> an und schreibe Geschichte!</>
+                : <> Schau bald wieder vorbei – die erste Challenge kommt bestimmt.</>}
             </AlertDescription>
           </Alert>
       )}
